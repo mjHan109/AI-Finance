@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     budgetRecord[b.categoryId] = Number(b.amount);
   }
 
-  const result = categories.map((cat) => ({
+  const result = categories.map((cat: { id: string; name: string; icon: string | null; color: string | null }) => ({
     categoryId:    cat.id,
     categoryName:  cat.name,
     categoryIcon:  cat.icon  ?? "📦",
