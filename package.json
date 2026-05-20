@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "node scripts/patch-prisma.js"
+    "postinstall": "prisma generate && node scripts/patch-prisma.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
