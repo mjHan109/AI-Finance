@@ -18,8 +18,8 @@ export async function POST() {
     prisma.category.findMany({ select: { id: true, name: true } }),
   ]);
 
-  type CatRow = (typeof categories)[number];
-  const catMap = new Map(categories.map((c: CatRow) => [c.name, c.id]));
+  const catMap: Record<string, string> = {};
+  for (const c of categories as Array<{ id: string; name: string }>) catMap[c.name] = c.id;
   let updated = 0;
 
   for (const tx of transactions) {
@@ -27,11 +27,11 @@ export async function POST() {
     let categoryId: string | null = null;
     if (tx.aiCategory) {
       const mapped = mapBanksaladCategory(tx.aiCategory);
-      if (mapped) categoryId = catMap.get(mapped) ?? null;
+      if (mapped) categoryId = catMap[mapped] ?? null;
     }
     if (!categoryId) {
       const rule = classifyByKeywords(tx.description);
-      categoryId = catMap.get(rule.name) ?? catMap.get("기타") ?? null;
+      categoryId = catMap[rule.name] ?? catMap["기타"] ?? null;
     }
 
     await prisma.transaction.update({

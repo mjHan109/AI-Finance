@@ -55,12 +55,14 @@ async function getDashboardData(userId: string) {
   const categories = await prisma.category.findMany({
     where: { id: { in: categoryIds } },
   });
-  const catMap = new Map(categories.map((c) => [c.id, c]));
+  type CatRow = (typeof categories)[number];
+  const catRecord: Record<string, CatRow> = {};
+  for (const c of categories) catRecord[c.id] = c;
 
   const categoryData = categoryExpenses
     .filter((c: CatExp) => c.categoryId)
     .map((c: CatExp) => {
-      const cat = catMap.get(c.categoryId!)!;
+      const cat = catRecord[c.categoryId!];
       return {
         name: cat?.name ?? "기타",
         icon: cat?.icon ?? "📦",

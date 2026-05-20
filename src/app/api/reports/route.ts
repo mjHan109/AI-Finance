@@ -46,8 +46,10 @@ export async function GET(req: NextRequest) {
     orderBy: { _sum: { amount: "desc" } },
   });
 
+  type CatExpRow = (typeof categoryExpenses)[number];
+
   const categoryIds = categoryExpenses
-    .map((c) => c.categoryId)
+    .map((c: CatExpRow) => c.categoryId)
     .filter((id): id is string => id !== null);
 
   const categories = await prisma.category.findMany({ where: { id: { in: categoryIds } } });
@@ -57,8 +59,8 @@ export async function GET(req: NextRequest) {
   for (const c of categories) catRecord[c.id] = c;
 
   const categoryData = categoryExpenses
-    .filter((c) => c.categoryId !== null)
-    .map((c) => ({
+    .filter((c: CatExpRow) => c.categoryId !== null)
+    .map((c: CatExpRow) => ({
       name:   catRecord[c.categoryId!]?.name  ?? "기타",
       icon:   catRecord[c.categoryId!]?.icon  ?? "📦",
       color:  catRecord[c.categoryId!]?.color ?? "#4B5563",
@@ -72,9 +74,11 @@ export async function GET(req: NextRequest) {
     _sum: { amount: true },
   });
 
+  type PrevCatExpRow = (typeof prevCatExpenses)[number];
   const prevCatRecord: Record<string, number> = {};
   for (const c of prevCatExpenses) {
-    if (c.categoryId) prevCatRecord[c.categoryId] = Number(c._sum.amount ?? 0);
+    const row = c as PrevCatExpRow;
+    if (row.categoryId) prevCatRecord[row.categoryId] = Number(row._sum.amount ?? 0);
   }
 
   const categoryDataWithDiff = categoryData.map((c) => {
