@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CategoryDonut } from "@/components/charts/CategoryDonut";
 import { MonthlyBar } from "@/components/charts/MonthlyBar";
+import { formatKRW } from "@/lib/utils";
 
 async function getDashboardData(userId: string) {
   const now = new Date();
@@ -15,14 +16,21 @@ async function getDashboardData(userId: string) {
   const startOfMonth = new Date(year, month, 1);
   const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
 
+  const prevMonthStart = new Date(year, month - 1, 1);
+  const prevMonthEnd   = new Date(year, month, 0, 23, 59, 59);
+
   // 이번 달 요약
-  const [incomeAgg, expenseAgg, recentTx] = await Promise.all([
+  const [incomeAgg, expenseAgg, prevExpenseAgg, recentTx] = await Promise.all([
     prisma.transaction.aggregate({
-      where: { userId, isIncome: true, date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { userId, isIncome: true,  date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.transaction.aggregate({
       where: { userId, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { userId, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
       _sum: { amount: true },
     }),
     prisma.transaction.findMany({
@@ -42,15 +50,16 @@ async function getDashboardData(userId: string) {
     take: 6,
   });
 
-  const categoryIds = categoryExpenses.map((c) => c.categoryId).filter(Boolean) as string[];
+  type CatExp = (typeof categoryExpenses)[number];
+  const categoryIds = categoryExpenses.map((c: CatExp) => c.categoryId).filter(Boolean) as string[];
   const categories = await prisma.category.findMany({
     where: { id: { in: categoryIds } },
   });
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
   const categoryData = categoryExpenses
-    .filter((c) => c.categoryId)
-    .map((c) => {
+    .filter((c: CatExp) => c.categoryId)
+    .map((c: CatExp) => {
       const cat = catMap.get(c.categoryId!)!;
       return {
         name: cat?.name ?? "기타",
@@ -85,30 +94,26 @@ async function getDashboardData(userId: string) {
     ...v,
   }));
 
+  const income      = Number(incomeAgg._sum.amount     ?? 0);
+  const expense     = Number(expenseAgg._sum.amount    ?? 0);
+  const prevExpense = Number(prevExpenseAgg._sum.amount ?? 0);
+  const expenseChange = prevExpense > 0
+    ? Math.round(((expense - prevExpense) / prevExpense) * 100) : null;
+  const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : null;
+
   return {
-    income: Number(incomeAgg._sum.amount ?? 0),
-    expense: Number(expenseAgg._sum.amount ?? 0),
-    recentTx,
-    categoryData,
-    monthlyData,
+    income, expense, expenseChange, savingsRate,
+    recentTx, categoryData, monthlyData,
     label: `${year}년 ${month + 1}월`,
   };
 }
 
-function formatKRW(amount: number) {
-  if (amount >= 10000) {
-    const man = Math.floor(amount / 10000);
-    const rem = amount % 10000;
-    return rem > 0 ? `${man.toLocaleString()}만 ${rem.toLocaleString()}원` : `${man.toLocaleString()}만원`;
-  }
-  return `${amount.toLocaleString()}원`;
-}
 
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  const { income, expense, recentTx, categoryData, monthlyData, label } =
+  const { income, expense, expenseChange, savingsRate, recentTx, categoryData, monthlyData, label } =
     await getDashboardData(session.user.id);
 
   const balance = income - expense;
@@ -125,42 +130,60 @@ export default async function DashboardPage() {
       </div>
 
       {/* 요약 카드 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-              <TrendingUp size={14} className="text-emerald-400" /> 이번 달 수입
+          <CardHeader className="pb-1 pt-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <TrendingUp size={12} className="text-emerald-400" /> 이번 달 수입
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-emerald-400">
+          <CardContent className="pb-4">
+            <p className="text-xl font-bold text-emerald-400 tabular-nums">
               {hasData ? formatKRW(income) : "-"}
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-              <TrendingDown size={14} className="text-destructive" /> 이번 달 지출
+          <CardHeader className="pb-1 pt-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <TrendingDown size={12} className="text-destructive" /> 이번 달 지출
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-destructive">
+          <CardContent className="pb-4">
+            <p className="text-xl font-bold text-destructive tabular-nums">
               {hasData ? formatKRW(expense) : "-"}
+            </p>
+            {expenseChange !== null && hasData && (
+              <p className={`text-xs mt-1 font-medium ${expenseChange > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                전월 대비 {expenseChange > 0 ? "▲" : "▼"} {Math.abs(expenseChange)}%
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-1 pt-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <Wallet size={12} className="text-primary" /> 순 잔액
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <p className={`text-xl font-bold tabular-nums ${balance >= 0 ? "text-primary" : "text-destructive"}`}>
+              {hasData ? `${balance.toLocaleString()}원` : "-"}
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-              <Wallet size={14} className="text-primary" /> 순 잔액
+          <CardHeader className="pb-1 pt-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <Wallet size={12} className="text-amber-400" /> 저축률
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-bold ${balance >= 0 ? "text-primary" : "text-destructive"}`}>
-              {hasData ? formatKRW(balance) : "-"}
+          <CardContent className="pb-4">
+            <p className={`text-xl font-bold tabular-nums ${(savingsRate ?? 0) >= 0 ? "text-amber-400" : "text-destructive"}`}>
+              {savingsRate !== null && hasData ? `${savingsRate}%` : "-"}
             </p>
           </CardContent>
         </Card>
