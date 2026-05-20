@@ -18,7 +18,8 @@ export async function POST() {
     prisma.category.findMany({ select: { id: true, name: true } }),
   ]);
 
-  const catMap = new Map(categories.map((c) => [c.name, c.id]));
+  type CatRow = (typeof categories)[number];
+  const catMap = new Map(categories.map((c: CatRow) => [c.name, c.id]));
   let updated = 0;
 
   for (const tx of transactions) {

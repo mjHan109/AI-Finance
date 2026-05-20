@@ -49,7 +49,8 @@ export async function GET(req: NextRequest) {
   type CatExp = (typeof categoryExpenses)[number];
   const categoryIds = categoryExpenses.map((c: CatExp) => c.categoryId).filter(Boolean) as string[];
   const categories  = await prisma.category.findMany({ where: { id: { in: categoryIds } } });
-  const catMap      = new Map(categories.map((c) => [c.id, c]));
+  type CatRow = (typeof categories)[number];
+  const catMap      = new Map(categories.map((c: CatRow) => [c.id, c]));
 
   const categoryData = categoryExpenses
     .filter((c: CatExp) => c.categoryId)
@@ -69,8 +70,9 @@ export async function GET(req: NextRequest) {
   type PrevCatExp = (typeof prevCatExpenses)[number];
   const prevCatMap = new Map(prevCatExpenses.map((c: PrevCatExp) => [c.categoryId, Number(c._sum.amount ?? 0)]));
 
-  const categoryDataWithDiff = categoryData.map((c) => {
-    const cat    = categories.find((x) => x.name === c.name);
+  type CatData = (typeof categoryData)[number];
+  const categoryDataWithDiff = categoryData.map((c: CatData) => {
+    const cat    = categories.find((x: CatRow) => x.name === c.name);
     const prev   = cat ? (prevCatMap.get(cat.id) ?? 0) : 0;
     const diff   = prev > 0 ? Math.round(((c.amount - prev) / prev) * 100) : null;
     return { ...c, prevAmount: prev, diff };
@@ -176,7 +178,7 @@ export async function GET(req: NextRequest) {
     incomeChange, expenseChange, savingsRate,
     categoryData: categoryDataWithDiff,
     monthlyData,
-    topMerchants: topMerchants.map((m) => ({
+    topMerchants: topMerchants.map((m: (typeof topMerchants)[number]) => ({
       name: m.description,
       amount: Number(m._sum.amount ?? 0),
       count: m._count.id,

@@ -43,7 +43,8 @@ export async function GET(req: NextRequest) {
   );
   const budgetMap = new Map(budgets.map((b: BudgetRow) => [b.categoryId, b]));
 
-  const result = categories.map((cat) => ({
+  type CatRow = (typeof categories)[number];
+  const result = categories.map((cat: CatRow) => ({
     categoryId: cat.id,
     categoryName: cat.name,
     categoryIcon: cat.icon ?? "📦",
