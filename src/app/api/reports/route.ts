@@ -12,25 +12,25 @@ export async function GET(req: NextRequest) {
   const userId = session.user.id;
 
   const { searchParams } = new URL(req.url);
-  const now = new Date();
-  const year = parseInt(searchParams.get("year") ?? String(now.getFullYear()));
+  const now   = new Date();
+  const year  = parseInt(searchParams.get("year")  ?? String(now.getFullYear()));
   const month = parseInt(searchParams.get("month") ?? String(now.getMonth() + 1));
 
-  const startOfMonth = new Date(year, month - 1, 1);
-  const endOfMonth = new Date(year, month, 0, 23, 59, 59);
+  const startOfMonth  = new Date(year, month - 1, 1);
+  const endOfMonth    = new Date(year, month, 0, 23, 59, 59);
   const prevMonthStart = new Date(year, month - 2, 1);
-  const prevMonthEnd = new Date(year, month - 1, 0, 23, 59, 59);
+  const prevMonthEnd   = new Date(year, month - 1, 0, 23, 59, 59);
 
   // ── 이번 달 & 전달 집계 ──
   const [incomeAgg, expenseAgg, prevIncomeAgg, prevExpenseAgg] = await Promise.all([
-    prisma.transaction.aggregate({ where: { userId, isIncome: true,  date: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
-    prisma.transaction.aggregate({ where: { userId, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { userId, isIncome: true,  date: { gte: startOfMonth,  lte: endOfMonth   } }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { userId, isIncome: false, date: { gte: startOfMonth,  lte: endOfMonth   } }, _sum: { amount: true } }),
     prisma.transaction.aggregate({ where: { userId, isIncome: true,  date: { gte: prevMonthStart, lte: prevMonthEnd } }, _sum: { amount: true } }),
     prisma.transaction.aggregate({ where: { userId, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } }, _sum: { amount: true } }),
   ]);
 
-  const income     = Number(incomeAgg._sum.amount     ?? 0);
-  const expense    = Number(expenseAgg._sum.amount    ?? 0);
+  const income      = Number(incomeAgg._sum.amount      ?? 0);
+  const expense     = Number(expenseAgg._sum.amount     ?? 0);
   const prevIncome  = Number(prevIncomeAgg._sum.amount  ?? 0);
   const prevExpense = Number(prevExpenseAgg._sum.amount ?? 0);
 
@@ -46,35 +46,41 @@ export async function GET(req: NextRequest) {
     orderBy: { _sum: { amount: "desc" } },
   });
 
-  type CatExp = (typeof categoryExpenses)[number];
-  const categoryIds = categoryExpenses.map((c: CatExp) => c.categoryId).filter(Boolean) as string[];
-  const categories  = await prisma.category.findMany({ where: { id: { in: categoryIds } } });
-  type CatRow = (typeof categories)[number];
-  const catMap      = new Map(categories.map((c: CatRow) => [c.id, c]));
+  const categoryIds = categoryExpenses
+    .map((c) => c.categoryId)
+    .filter((id): id is string => id !== null);
+
+  const categories = await prisma.category.findMany({ where: { id: { in: categoryIds } } });
+
+  // Record 사용
+  const catRecord: Record<string, { name: string; icon: string | null; color: string | null }> = {};
+  for (const c of categories) catRecord[c.id] = c;
 
   const categoryData = categoryExpenses
-    .filter((c: CatExp) => c.categoryId)
-    .map((c: CatExp) => ({
-      name:   catMap.get(c.categoryId!)?.name  ?? "기타",
-      icon:   catMap.get(c.categoryId!)?.icon  ?? "📦",
-      color:  catMap.get(c.categoryId!)?.color ?? "#4B5563",
+    .filter((c) => c.categoryId !== null)
+    .map((c) => ({
+      name:   catRecord[c.categoryId!]?.name  ?? "기타",
+      icon:   catRecord[c.categoryId!]?.icon  ?? "📦",
+      color:  catRecord[c.categoryId!]?.color ?? "#4B5563",
       amount: Number(c._sum.amount ?? 0),
     }));
 
-  // ── 전달 카테고리별 지출 (비교용) ──
+  // ── 전달 카테고리별 지출 ──
   const prevCatExpenses = await prisma.transaction.groupBy({
     by: ["categoryId"],
     where: { userId, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
     _sum: { amount: true },
   });
-  type PrevCatExp = (typeof prevCatExpenses)[number];
-  const prevCatMap = new Map(prevCatExpenses.map((c: PrevCatExp) => [c.categoryId, Number(c._sum.amount ?? 0)]));
 
-  type CatData = (typeof categoryData)[number];
-  const categoryDataWithDiff = categoryData.map((c: CatData) => {
-    const cat    = categories.find((x: CatRow) => x.name === c.name);
-    const prev   = cat ? (prevCatMap.get(cat.id) ?? 0) : 0;
-    const diff   = prev > 0 ? Math.round(((c.amount - prev) / prev) * 100) : null;
+  const prevCatRecord: Record<string, number> = {};
+  for (const c of prevCatExpenses) {
+    if (c.categoryId) prevCatRecord[c.categoryId] = Number(c._sum.amount ?? 0);
+  }
+
+  const categoryDataWithDiff = categoryData.map((c) => {
+    const cat  = categories.find((x) => x.name === c.name);
+    const prev = cat ? (prevCatRecord[cat.id] ?? 0) : 0;
+    const diff = prev > 0 ? Math.round(((c.amount - prev) / prev) * 100) : null;
     return { ...c, prevAmount: prev, diff };
   });
 
@@ -88,36 +94,31 @@ export async function GET(req: NextRequest) {
     take: 10,
   });
 
-  // ── 이번 달 전체 지출 트랜잭션 (주간/요일 분석용) ──
+  // ── 주간/요일 분석 ──
   const monthTx = await prisma.transaction.findMany({
     where: { userId, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
     select: { date: true, amount: true },
   });
 
-  // 주차별 지출
   const weekMap: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  const dowMap: number[] = [0, 0, 0, 0, 0, 0, 0];
   for (const tx of monthTx) {
     const week = Math.ceil(tx.date.getDate() / 7);
     weekMap[week] = (weekMap[week] ?? 0) + Number(tx.amount);
+    dowMap[tx.date.getDay()] += Number(tx.amount);
   }
+
   const weeklyData = [1, 2, 3, 4, 5]
     .filter((w) => weekMap[w] > 0)
     .map((w) => ({ week: `${w}주차`, amount: weekMap[w] }));
 
-  // 요일별 지출
-  const dowMap: number[] = [0, 0, 0, 0, 0, 0, 0];
-  for (const tx of monthTx) {
-    dowMap[tx.date.getDay()] += Number(tx.amount);
-  }
   const dowData = dowMap.map((amount, i) => ({ day: DAY_LABELS[i], amount }));
 
-  // 하루 평균 지출
   const daysInMonth = endOfMonth.getDate();
-  const today       = year === now.getFullYear() && month === now.getMonth() + 1
-    ? now.getDate() : daysInMonth;
+  const today = year === now.getFullYear() && month === now.getMonth() + 1 ? now.getDate() : daysInMonth;
   const dailyAvg = today > 0 ? Math.round(expense / today) : 0;
 
-  // ── 최근 6개월 월별 수입/지출 ──
+  // ── 최근 6개월 월별 ──
   const sixMonthsAgo = new Date(year, month - 6, 1);
   const allTx = await prisma.transaction.findMany({
     where: { userId, date: { gte: sixMonthsAgo } },
@@ -126,9 +127,8 @@ export async function GET(req: NextRequest) {
 
   const monthlyMap = new Map<string, { income: number; expense: number }>();
   for (let i = 5; i >= 0; i--) {
-    const d   = new Date(year, month - 1 - i, 1);
-    const key = `${d.getMonth() + 1}월`;
-    monthlyMap.set(key, { income: 0, expense: 0 });
+    const d = new Date(year, month - 1 - i, 1);
+    monthlyMap.set(`${d.getMonth() + 1}월`, { income: 0, expense: 0 });
   }
   for (const tx of allTx) {
     const key = `${tx.date.getMonth() + 1}월`;
@@ -139,49 +139,36 @@ export async function GET(req: NextRequest) {
   }
   const monthlyData = Array.from(monthlyMap.entries()).map(([m, v]) => ({ month: m, ...v }));
 
-  // ── 자동 인사이트 생성 ──
+  // ── 인사이트 ──
   const insights: string[] = [];
-
   if (expenseChange !== null) {
-    if (expenseChange > 10)
-      insights.push(`지출이 전월 대비 ${expenseChange}% 증가했어요. 지출 항목을 점검해보세요.`);
-    else if (expenseChange < -10)
-      insights.push(`지출이 전월 대비 ${Math.abs(expenseChange)}% 감소했어요. 잘 절약하고 있어요! 👍`);
+    if (expenseChange > 10)  insights.push(`지출이 전월 대비 ${expenseChange}% 증가했어요. 지출 항목을 점검해보세요.`);
+    else if (expenseChange < -10) insights.push(`지출이 전월 대비 ${Math.abs(expenseChange)}% 감소했어요. 잘 절약하고 있어요! 👍`);
   }
-
   if (savingsRate !== null) {
-    if (savingsRate >= 30)
-      insights.push(`이번 달 저축률은 ${savingsRate}%예요. 훌륭한 재정 관리예요!`);
-    else if (savingsRate < 0)
-      insights.push(`이번 달은 수입보다 지출이 많아요. 예산을 점검해보세요.`);
-    else
-      insights.push(`이번 달 저축률은 ${savingsRate}%예요.`);
+    if (savingsRate >= 30)   insights.push(`이번 달 저축률은 ${savingsRate}%예요. 훌륭한 재정 관리예요!`);
+    else if (savingsRate < 0) insights.push(`이번 달은 수입보다 지출이 많아요. 예산을 점검해보세요.`);
+    else                     insights.push(`이번 달 저축률은 ${savingsRate}%예요.`);
   }
-
   if (categoryDataWithDiff.length > 0) {
     const top = categoryDataWithDiff[0];
     const pct = expense > 0 ? Math.round((top.amount / expense) * 100) : 0;
     insights.push(`${top.icon} ${top.name}이(가) 전체 지출의 ${pct}%로 가장 많아요.`);
-    if (top.diff !== null && top.diff > 20)
-      insights.push(`${top.name} 지출이 전월 대비 ${top.diff}% 늘었어요.`);
+    if (top.diff !== null && top.diff > 20) insights.push(`${top.name} 지출이 전월 대비 ${top.diff}% 늘었어요.`);
   }
-
-  if (dailyAvg > 0)
-    insights.push(`하루 평균 지출은 ${dailyAvg.toLocaleString()}원이에요.`);
-
+  if (dailyAvg > 0) insights.push(`하루 평균 지출은 ${dailyAvg.toLocaleString()}원이에요.`);
   const maxDow = dowData.reduce((a, b) => (a.amount > b.amount ? a : b), dowData[0]);
-  if (maxDow && maxDow.amount > 0)
-    insights.push(`${maxDow.day}요일에 가장 많이 지출했어요.`);
+  if (maxDow && maxDow.amount > 0) insights.push(`${maxDow.day}요일에 가장 많이 지출했어요.`);
 
   return NextResponse.json({
     income, expense, prevIncome, prevExpense,
     incomeChange, expenseChange, savingsRate,
     categoryData: categoryDataWithDiff,
     monthlyData,
-    topMerchants: topMerchants.map((m: (typeof topMerchants)[number]) => ({
-      name: m.description,
+    topMerchants: topMerchants.map((m) => ({
+      name:   m.description,
       amount: Number(m._sum.amount ?? 0),
-      count: m._count.id,
+      count:  m._count.id,
     })),
     weeklyData,
     dowData,
