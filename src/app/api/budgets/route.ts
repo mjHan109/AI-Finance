@@ -36,10 +36,12 @@ export async function GET(req: NextRequest) {
     _sum: { amount: true },
   });
 
+  type ExpRow = (typeof expenses)[number];
+  type BudgetRow = (typeof budgets)[number];
   const expenseMap = new Map(
-    expenses.map((e) => [e.categoryId ?? "null", Number(e._sum.amount ?? 0)])
+    expenses.map((e: ExpRow) => [e.categoryId ?? "null", Number(e._sum.amount ?? 0)])
   );
-  const budgetMap = new Map(budgets.map((b) => [b.categoryId, b]));
+  const budgetMap = new Map(budgets.map((b: BudgetRow) => [b.categoryId, b]));
 
   const result = categories.map((cat) => ({
     categoryId: cat.id,
