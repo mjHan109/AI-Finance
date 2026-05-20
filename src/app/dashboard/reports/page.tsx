@@ -215,12 +215,12 @@ export default function ReportsPage() {
                     <YAxis hide />
                     <Tooltip
                       formatter={(v) => [`${Number(v).toLocaleString()}원`, "지출"]}
-                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
+                      contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px", color: "hsl(var(--popover-foreground))" }}
                     />
                     <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
-                      {data!.dowData.map((entry, i) => {
-                        const max = Math.max(...data!.dowData.map(d => d.amount));
-                        return <Cell key={i} fill={entry.amount === max ? "#a78bfa" : "#4B5563"} />;
+                      {data!.dowData.map((entry: DowData, i: number) => {
+                        const max = Math.max(...data!.dowData.map((d: DowData) => d.amount));
+                        return <Cell key={i} fill={entry.amount === max ? "hsl(var(--primary))" : "hsl(var(--muted))"} />;
                       })}
                     </Bar>
                   </BarChart>
@@ -242,7 +242,7 @@ export default function ReportsPage() {
                       <YAxis hide />
                       <Tooltip
                         formatter={(v) => [`${Number(v).toLocaleString()}원`, "지출"]}
-                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
+                        contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px", color: "hsl(var(--popover-foreground))" }}
                       />
                       <Bar dataKey="amount" fill="#F87171" radius={[4, 4, 0, 0]} />
                     </BarChart>

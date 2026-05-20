@@ -100,11 +100,15 @@ export async function POST(req: NextRequest) {
       // 1순위: 뱅크샐러드 분류 컬럼
       if (tx.suggestedCategory) {
         const mapped = mapBanksaladCategory(tx.suggestedCategory)
+        // 내 계좌 이체(금융/이체)로 분류된 지출은 저장 제외
+        if (mapped === "금융/이체") { dupCount++; continue }
         if (mapped) categoryId = categoryCache.get(mapped) ?? null
       }
       // 2순위: 키워드 매칭
       if (!categoryId) {
         const rule = classifyByKeywords(tx.description)
+        // 이체 키워드로 분류된 지출도 제외
+        if (rule.name === "금융/이체") { dupCount++; continue }
         categoryId = categoryCache.get(rule.name) ?? categoryCache.get("기타") ?? null
       }
     }

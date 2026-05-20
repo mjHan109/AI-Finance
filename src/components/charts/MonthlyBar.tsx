@@ -21,10 +21,19 @@ interface Props {
   data: MonthlyData[];
 }
 
-function formatKRW(v: number) {
-  if (v >= 10000) return `${Math.floor(v / 10000).toLocaleString()}만`;
+function formatYAxis(v: number) {
+  if (v >= 1000000) return `${(v / 1000000).toFixed(0)}백만`;
+  if (v >= 10000) return `${Math.floor(v / 10000)}만`;
   return `${v.toLocaleString()}`;
 }
+
+const TOOLTIP_STYLE = {
+  background: "hsl(var(--popover))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "8px",
+  fontSize: "12px",
+  color: "hsl(var(--popover-foreground))",
+};
 
 export function MonthlyBar({ data }: Props) {
   if (data.every((d) => d.income === 0 && d.expense === 0)) {
@@ -47,30 +56,26 @@ export function MonthlyBar({ data }: Props) {
           tickLine={false}
         />
         <YAxis
-          tickFormatter={formatKRW}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+          tickFormatter={formatYAxis}
+          tick={{ fontSize: 11, fill: "hsl(var(--foreground))", fontWeight: 500 }}
           axisLine={false}
           tickLine={false}
-          width={48}
+          width={56}
         />
         <Tooltip
           formatter={(value, name) => [
             `${Number(value).toLocaleString()}원`,
             name === "income" ? "수입" : "지출",
           ]}
-          contentStyle={{
-            background: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "8px",
-            fontSize: "12px",
-          }}
+          contentStyle={TOOLTIP_STYLE}
+          labelStyle={{ color: "hsl(var(--muted-foreground))", marginBottom: 4 }}
         />
         <Legend
           formatter={(v) => (v === "income" ? "수입" : "지출")}
-          wrapperStyle={{ fontSize: "12px" }}
+          wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }}
         />
-        <Bar dataKey="income" fill="#34D399" radius={[4, 4, 0, 0]} />
-        <Bar dataKey="expense" fill="#F87171" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="income" fill="hsl(var(--chart-2, 160 60% 45%))" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="expense" fill="hsl(var(--chart-1, 0 72% 51%))" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
