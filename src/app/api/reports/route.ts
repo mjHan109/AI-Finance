@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
   const categoryIds = categoryExpenses
     .map((c: CatExpRow) => c.categoryId)
-    .filter((id): id is string => id !== null);
+    .filter((id: string | null): id is string => id !== null);
 
   const categories = await prisma.category.findMany({ where: { id: { in: categoryIds } } });
 
