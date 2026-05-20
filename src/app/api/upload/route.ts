@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { parseFile } from "@/modules/files/parse"
 import { fingerprint } from "@/modules/files/normalize"
-import { classifyByKeywords } from "@/modules/categories/rules"
+import { classifyByKeywords, mapBanksaladCategory } from "@/modules/categories/rules"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = ["xlsx", "xls", "csv"]
@@ -91,13 +91,22 @@ export async function POST(req: NextRequest) {
     })
     if (existing) { dupCount++; continue }
 
-    // 지출만 카테고리 분류 (수입은 금융/이체로)
+    // 카테고리 분류 우선순위:
+    // 1. 뱅크샐러드 자체 카테고리 → 2. 키워드 매칭 → 3. 기타
     let categoryId: string | null = null
-    if (!tx.isIncome) {
-      const rule = classifyByKeywords(tx.description)
-      categoryId = categoryCache.get(rule.name) ?? categoryCache.get("기타") ?? null
-    } else {
+    if (tx.isIncome) {
       categoryId = categoryCache.get("금융/이체") ?? null
+    } else {
+      // 1순위: 뱅크샐러드 분류 컬럼
+      if (tx.suggestedCategory) {
+        const mapped = mapBanksaladCategory(tx.suggestedCategory)
+        if (mapped) categoryId = categoryCache.get(mapped) ?? null
+      }
+      // 2순위: 키워드 매칭
+      if (!categoryId) {
+        const rule = classifyByKeywords(tx.description)
+        categoryId = categoryCache.get(rule.name) ?? categoryCache.get("기타") ?? null
+      }
     }
 
     await prisma.transaction.create({

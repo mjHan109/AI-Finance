@@ -6,6 +6,7 @@ export interface RawTransaction {
   description: string
   amount: number   // positive = income, negative = expense
   isIncome: boolean
+  suggestedCategory?: string  // 파서가 제공하는 카테고리 힌트 (뱅크샐러드 등)
 }
 
 export interface ParseResult {

@@ -54,8 +54,8 @@ export function MonthlyBar({ data }: Props) {
           width={48}
         />
         <Tooltip
-          formatter={(value: number, name: string) => [
-            `${value.toLocaleString()}원`,
+          formatter={(value, name) => [
+            `${Number(value).toLocaleString()}원`,
             name === "income" ? "수입" : "지출",
           ]}
           contentStyle={{

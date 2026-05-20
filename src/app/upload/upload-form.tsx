@@ -48,7 +48,7 @@ export function UploadForm() {
 
   // 계좌 선택
   const [accounts, setAccounts] = useState<FinancialAccount[]>([])
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("new")
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("none")
   const [newAccountName, setNewAccountName] = useState("")
   const [newAccountType, setNewAccountType] = useState<"BANK" | "CARD" | "CASH">("BANK")
 
@@ -79,13 +79,14 @@ export function UploadForm() {
         form.append("accountName", newAccountName.trim())
         form.append("accountType", newAccountType)
       }
-    } else {
+    } else if (selectedAccountId !== "none") {
       const acc = accounts.find((a) => a.id === selectedAccountId)
       if (acc) {
         form.append("accountName", acc.name)
         form.append("accountType", acc.type)
       }
     }
+    // selectedAccountId === "none" → 계좌 태그 없이 업로드
 
     const res = await fetch("/api/upload", { method: "POST", body: form })
     const text = await res.text()
@@ -161,9 +162,28 @@ export function UploadForm() {
       {file && state !== "done" && (
         <Card>
           <CardContent className="py-4 space-y-3">
-            <p className="text-sm font-medium text-foreground">어떤 계좌의 내역인가요?</p>
+            <div>
+              <p className="text-sm font-medium text-foreground">계좌 태그 (선택사항)</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                뱅크샐러드처럼 여러 계좌가 합쳐진 파일은 태그 없이 업로드하세요
+              </p>
+            </div>
 
             <div className="space-y-2">
+              {/* 계좌 구분 없음 (기본) */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="account"
+                  value="none"
+                  checked={selectedAccountId === "none"}
+                  onChange={() => setSelectedAccountId("none")}
+                  className="accent-primary"
+                />
+                <span className="text-sm font-medium text-foreground">계좌 태그 없음</span>
+                <span className="text-xs text-muted-foreground">(뱅크샐러드 등 전체 내역 파일)</span>
+              </label>
+
               {/* 기존 계좌 */}
               {accounts.map((acc) => (
                 <label key={acc.id} className="flex items-center gap-3 cursor-pointer">
@@ -197,7 +217,7 @@ export function UploadForm() {
                   onChange={() => setSelectedAccountId("new")}
                   className="accent-primary"
                 />
-                <span className="text-sm text-muted-foreground">+ 새 계좌 등록</span>
+                <span className="text-sm text-muted-foreground">+ 특정 계좌로 태그하기</span>
               </label>
             </div>
 

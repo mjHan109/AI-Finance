@@ -55,7 +55,7 @@ export function CategoryDonut({ data }: Props) {
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number) => [formatKRW(value), "지출"]}
+            formatter={(value) => [formatKRW(Number(value)), "지출"]}
             contentStyle={{
               background: "hsl(var(--card))",
               border: "1px solid hsl(var(--border))",

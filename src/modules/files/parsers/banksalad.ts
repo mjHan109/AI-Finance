@@ -59,7 +59,10 @@ export function parseBanksalad(rows: string[][]): ParseResult {
 
     const amount = isIncome ? absAmount : -Math.abs(absAmount)
 
-    transactions.push({ rawDate, rawDescription: rawDesc, rawAmount: rawAmt, date, description: rawDesc, amount, isIncome })
+    const catCol = matchCol(headers, BS_CAT_COL)
+    const suggestedCategory = catCol !== -1 ? row[catCol]?.toString().trim() : undefined
+
+    transactions.push({ rawDate, rawDescription: rawDesc, rawAmount: rawAmt, date, description: rawDesc, amount, isIncome, suggestedCategory })
   }
 
   return { transactions, rowCount: transactions.length, source: "banksalad", errors }
