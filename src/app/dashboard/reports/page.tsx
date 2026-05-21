@@ -7,6 +7,7 @@ import { MonthlyBar } from "@/components/charts/MonthlyBar";
 import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, Wallet, Lightbulb, CalendarDays, BarChart3 } from "lucide-react";
 import { formatKRW } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CategoryData {
   name: string; icon: string; color: string; amount: number;
@@ -84,7 +85,29 @@ export default function ReportsPage() {
       </div>
 
       {loading ? (
-        <div className="py-20 text-center text-muted-foreground text-sm">분석 중...</div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-7 w-24" />
+                <Skeleton className="h-4 w-12" />
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-5 space-y-3">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
       ) : !hasData ? (
         <div className="py-20 text-center text-muted-foreground text-sm">이 달의 거래 내역이 없어요</div>
       ) : (

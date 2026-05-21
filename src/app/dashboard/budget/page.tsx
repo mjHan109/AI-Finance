@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Check, Pencil } from "lucide-react";
 import { formatKRW } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface BudgetItem {
   categoryId: string;
@@ -116,7 +117,18 @@ export default function BudgetPage() {
 
       {/* 활성 카테고리 */}
       {loading ? (
-        <div className="py-16 text-center text-muted-foreground text-sm">불러오는 중...</div>
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <Skeleton className="h-2 w-full rounded-full" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          ))}
+        </div>
       ) : (
         <>
           {activeItems.length > 0 && (

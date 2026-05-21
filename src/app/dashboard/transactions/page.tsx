@@ -8,6 +8,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Search, Upload } from "lucide-react";
 import { formatKRW } from "@/lib/utils";
 import { TransactionDetailModal } from "@/components/TransactionDetailModal";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Category {
   id: string;
@@ -193,7 +194,18 @@ export default function TransactionsPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">불러오는 중...</div>
+            <div className="divide-y divide-border">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3.5">
+                  <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-44" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              ))}
+            </div>
           ) : transactions.length === 0 ? (
             <div className="py-16 text-center space-y-3">
               <p className="text-4xl">📂</p>
