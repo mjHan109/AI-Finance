@@ -51,7 +51,19 @@ NEXTAUTH_SECRET=""                # openssl rand -base64 32
 npx tsx scripts/seed-categories.ts
 ```
 
-### 4. 개발 서버 실행
+### 4. Prisma 패치 적용 (필수)
+
+이 프로젝트는 Prisma 7과 Next.js 호환성을 위해 패치가 필요합니다.
+`npm install` 후 postinstall 스크립트가 자동으로 실행되지만, 수동으로도 실행할 수 있습니다:
+
+```bash
+node scripts/patch-prisma.js
+```
+
+> ⚠️ `node_modules`를 삭제하고 재설치하면 패치가 초기화됩니다. 이 경우 위 명령어를 다시 실행하세요.
+> 빌드 오류 `Cannot find module '#main-entry-point'`가 발생하면 이 패치를 먼저 적용하세요.
+
+### 5. 개발 서버 실행
 
 ```bash
 npm run dev

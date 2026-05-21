@@ -1,11 +1,7 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ShieldCheck } from "lucide-react";
 
-interface HealthData {
+export interface HealthData {
   score: number;
   level: "excellent" | "good" | "fair" | "poor";
   levelLabel: string;
@@ -22,41 +18,8 @@ const LEVEL_COLORS = {
   poor:      { ring: "#f87171", text: "text-red-400",     bg: "bg-red-400" },
 };
 
-export function FinancialHealthCard() {
-  const [data, setData] = useState<HealthData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/health")
-      .then((r) => r.json())
-      .then((d: HealthData) => { setData(d); setLoading(false); });
-  }, []);
-
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <Skeleton className="h-4 w-32" />
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-16 w-16 rounded-full shrink-0" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-5 w-24" />
-              <Skeleton className="h-3 w-full" />
-            </div>
-          </div>
-          <Skeleton className="h-3 w-3/4" />
-          <Skeleton className="h-3 w-2/3" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!data) return null;
-
+export function FinancialHealthCard({ data }: { data: HealthData }) {
   const colors = LEVEL_COLORS[data.level];
-  // SVG 원형 진행 바
   const r = 28, circumference = 2 * Math.PI * r;
   const offset = circumference - (data.score / 100) * circumference;
 
@@ -80,7 +43,6 @@ export function FinancialHealthCard() {
                 strokeDasharray={circumference}
                 strokeDashoffset={offset}
                 strokeLinecap="round"
-                style={{ transition: "stroke-dashoffset 0.6s ease" }}
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">

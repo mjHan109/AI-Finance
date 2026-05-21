@@ -100,7 +100,7 @@ model Transaction {
   createdAt          DateTime @default(now())
 
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  file              UploadedFile      @relation(fields: [fileId], references: [id])
+  file              UploadedFile      @relation(fields: [fileId], references: [id], onDelete: Cascade)
   category          Category?         @relation(fields: [categoryId], references: [id])
   financialAccount  FinancialAccount? @relation(fields: [financialAccountId], references: [id])
 

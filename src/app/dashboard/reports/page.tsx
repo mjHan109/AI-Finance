@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CategoryDonut } from "@/components/charts/CategoryDonut";
 import { MonthlyBar } from "@/components/charts/MonthlyBar";
-import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, Wallet, Lightbulb, CalendarDays, BarChart3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, Wallet, Lightbulb, CalendarDays, BarChart3, Sparkles, Upload } from "lucide-react";
 import { formatKRW } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,13 +46,18 @@ function ChangeBadge({ value }: { value: number | null }) {
 
 export default function ReportsPage() {
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
+  const [year, setYear]   = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [data, setData] = useState<ReportData | null>(null);
+  const [data, setData]   = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [aiInsights, setAiInsights]   = useState<string[] | null>(null);
+  const [aiLoading, setAiLoading]     = useState(false);
+  const [aiCached, setAiCached]       = useState(false);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
+    setAiInsights(null);
     const res = await fetch(`/api/reports?year=${year}&month=${month}`);
     setData(await res.json());
     setLoading(false);
@@ -65,6 +72,24 @@ export default function ReportsPage() {
   function nextMonth() {
     if (month === 12) { setYear(y => y + 1); setMonth(1); }
     else setMonth(m => m + 1);
+  }
+
+  async function handleAiInsights() {
+    setAiLoading(true);
+    try {
+      const res  = await fetch("/api/ai/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year, month }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setAiInsights(json.insights);
+        setAiCached(json.cached);
+      }
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   const hasData = (data?.income ?? 0) > 0 || (data?.expense ?? 0) > 0;
@@ -99,17 +124,15 @@ export default function ReportsPage() {
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-48 w-full" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[...Array(2)].map((_, i) => (
-              <div key={i} className="rounded-xl border border-border bg-card p-5 space-y-3">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-40 w-full" />
-              </div>
-            ))}
-          </div>
         </div>
       ) : !hasData ? (
-        <div className="py-20 text-center text-muted-foreground text-sm">이 달의 거래 내역이 없어요</div>
+        <div className="py-20 text-center space-y-3">
+          <p className="text-4xl">📊</p>
+          <p className="text-sm text-muted-foreground">이 달의 거래 내역이 없어요</p>
+          <Link href="/upload">
+            <Button size="sm" className="mt-1 gap-1.5"><Upload size={13} /> 파일 업로드</Button>
+          </Link>
+        </div>
       ) : (
         <>
           {/* ── 1. 핵심 지표 ── */}
@@ -155,26 +178,48 @@ export default function ReportsPage() {
             </Card>
           </div>
 
-          {/* ── 2. AI 인사이트 ── */}
-          {data!.insights.length > 0 && (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader className="pb-2 pt-4">
+          {/* ── 2. 인사이트 (규칙 기반 + AI) ── */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2 pt-4">
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <Lightbulb size={14} className="text-amber-400" /> 이달의 인사이트
                 </CardTitle>
-              </CardHeader>
-              <CardContent className="pb-4">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={handleAiInsights}
+                  disabled={aiLoading}
+                >
+                  <Sparkles size={12} className="text-violet-400" />
+                  {aiLoading ? "분석 중..." : aiInsights ? "재생성" : "AI 분석"}
+                  {aiCached && !aiLoading && <span className="text-muted-foreground ml-1">캐시</span>}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="pb-4">
+              {aiLoading ? (
+                <div className="space-y-2">
+                  {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-4 w-full" />)}
+                </div>
+              ) : (
                 <ul className="space-y-2">
-                  {data!.insights.map((insight, i) => (
+                  {(aiInsights ?? data!.insights).map((insight, i) => (
                     <li key={i} className="text-sm text-foreground/80 flex items-start gap-2">
                       <span className="text-muted-foreground mt-0.5">•</span>
                       {insight}
                     </li>
                   ))}
+                  {aiInsights && (
+                    <li className="text-xs text-muted-foreground pt-1 flex items-center gap-1">
+                      <Sparkles size={10} className="text-violet-400" /> Claude AI 생성
+                    </li>
+                  )}
                 </ul>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
 
           {/* ── 3. 카테고리 분석 + 전월 비교 ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -223,7 +268,7 @@ export default function ReportsPage() {
             </Card>
           </div>
 
-          {/* ── 4. 요일별 지출 + 주차별 지출 ── */}
+          {/* ── 4. 요일별 + 주차별 ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-3">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { accountCreateSchema, safeParse } from "@/lib/schemas"
 
 export async function GET() {
   const session = await auth()
@@ -8,15 +9,16 @@ export async function GET() {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
   }
 
-  const accounts = await prisma.financialAccount.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-    include: {
-      _count: { select: { transactions: true } },
-    },
-  })
-
-  return NextResponse.json(accounts)
+  try {
+    const accounts = await prisma.financialAccount.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "asc" },
+      include: { _count: { select: { transactions: true } } },
+    })
+    return NextResponse.json(accounts)
+  } catch {
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -25,24 +27,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
   }
 
-  const { name, type, color } = await req.json()
-
-  if (!name || !type) {
-    return NextResponse.json({ error: "이름과 종류는 필수입니다." }, { status: 400 })
-  }
-
-  const validTypes = ["BANK", "CARD", "CASH"]
-  if (!validTypes.includes(type)) {
-    return NextResponse.json({ error: "올바르지 않은 계좌 종류입니다." }, { status: 400 })
-  }
-
   try {
+    const body   = await req.json()
+    const parsed = safeParse(accountCreateSchema, body)
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+    const { name, type, color } = parsed.data
+
     const account = await prisma.financialAccount.create({
       data: {
         userId: session.user.id,
-        name,
+        name:   name.trim().slice(0, 50),
         type,
-        color: color ?? null,
+        color:  color ?? null,
       },
     })
     return NextResponse.json(account, { status: 201 })
@@ -57,12 +55,15 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 })
   }
 
-  const { id } = await req.json()
-  if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 })
+  try {
+    const { id } = await req.json()
+    if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 })
 
-  await prisma.financialAccount.deleteMany({
-    where: { id, userId: session.user.id },
-  })
-
-  return NextResponse.json({ ok: true })
+    await prisma.financialAccount.deleteMany({
+      where: { id, userId: session.user.id },
+    })
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
+  }
 }
