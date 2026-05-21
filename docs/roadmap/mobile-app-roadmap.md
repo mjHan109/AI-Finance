@@ -1,155 +1,174 @@
 # 모바일 앱 전환 로드맵
 
-## 전략 요약
+전환 순서: Web App → PWA → API 표준화 → React Native (Expo)
 
-웹 → PWA → React Native 순서로 단계적으로 전환한다.
-PostgreSQL / Supabase / Prisma는 모든 단계에서 그대로 유지.
-모바일 앱도 반드시 기존 `/api/*`를 통해 DB에 접근한다 (직접 연결 금지).
+백엔드(Prisma, Supabase, `/api/*`)는 모든 단계에서 변경 없음.
 
 ---
 
-## 인프라 구조 (변경 없음)
+## 현재 상태
 
-```
-[웹 브라우저 / React Native 앱]
-          ↓
-  Next.js API Routes (/api/*)
-          ↓
-        Prisma
-          ↓
-  Supabase PostgreSQL
-```
+- 현재 단계: PWA 준비 중
+- PWA: 미시작
+- React Native: 미시작
+- 참고 문서: `docs/architecture/mobile_strategy.md`
 
 ---
 
-## 단계별 계획
+## Phase 1 — PWA 통합
 
-### 1단계: PWA 적용 (현재)
+**브랜치:** `feature/pwa`
+**선행 조건:** Phase 5·6과 병행 가능 (독립적)
 
-현재 Next.js 웹에 PWA 기능 추가. 코드 변경 최소화.
+### 주의사항
 
-**작업 목록**
-- `next-pwa` 패키지 설치 및 설정
-- `manifest.json` 추가 (앱 이름, 아이콘, 테마 색상)
-- Service Worker 설정 (오프라인 캐싱)
-- 모바일 뷰포트 및 터치 UX 개선
-- "홈 화면에 추가" 지원 확인
+- Next.js 16.2.6 — `node_modules/next/dist/docs/` 확인 후 코드 작성
+- `@ducanh2912/next-pwa` Next.js 16 호환성 확인 필수
+- 현재 `next.config.ts`의 CSP에 `worker-src 'self'`가 없음 → 서비스 워커 차단됨
 
-**장점**
-- 기존 코드 그대로 재사용
-- Vercel 배포 그대로 유지
-- Android/iOS 홈 화면 설치 가능
+### 태스크
 
-**한계**
-- 앱스토어 배포 불가
-- 기기 센서(카메라 등) 접근 제한
+1. **문서 확인** — `node_modules/next/dist/docs/`에서 Next.js 16 PWA 가이드 확인
+2. **패키지 설치** — `@ducanh2912/next-pwa` 설치 (버전 호환성 확인 후)
+3. **CSP 수정** — `next.config.ts`에 `worker-src 'self'` 추가
+4. **manifest.json 생성** — `public/manifest.json`
+   ```json
+   {
+     "name": "podo 가계부",
+     "short_name": "podo",
+     "theme_color": "#ffffff",
+     "background_color": "#ffffff",
+     "display": "standalone",
+     "start_url": "/dashboard",
+     "icons": [
+       { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+       { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+     ]
+   }
+   ```
+5. **앱 아이콘 생성** — `public/icons/` 디렉토리에 192x192, 512x512 PNG
+6. **next.config.ts 수정** — `withPWA` 래퍼 적용, 캐싱 전략 설정
+7. **캐싱 전략**
+   - 캐시 대상: 정적 자산 (JS, CSS, 이미지, 폰트)
+   - 캐시 제외: `/api/*` 모든 라우트 (금융 데이터는 항상 최신 데이터 필요)
+8. **모바일 뷰포트 검토** — 터치 UX, 홈화면 추가 지원 확인
 
----
+### 검증
 
-### 2단계: API 안정화
+- Lighthouse PWA 점수 ≥ 90
+- `/manifest.json` 브라우저에서 접근 가능
+- DevTools > Application > Service Workers에 등록됨
+- 모바일 Chrome/Safari에서 "홈화면에 추가" 프롬프트 표시
 
-React Native 앱에서도 재사용 가능하도록 API 정리.
+### 금지사항
 
-**작업 목록**
-- API 응답 구조 표준화 (공통 에러 포맷)
-- 환경변수 점검 및 정리 (아래 참고)
-- CORS 설정 검토 (외부 클라이언트 허용 준비)
-- 주요 API 문서화 업데이트 (`docs/api.md`)
-- 인증 토큰 방식 검토 (쿠키 vs Bearer 토큰)
-
-**환경변수 체크리스트**
-```
-NEXTAUTH_URL          - Vercel 배포 주소로 설정
-AUTH_SECRET           - 강한 랜덤값
-GOOGLE_CLIENT_ID      - Google Cloud Console
-GOOGLE_CLIENT_SECRET  - Google Cloud Console
-DATABASE_URL          - Supabase 연결 풀 URL
-DIRECT_URL            - Supabase 직접 연결 URL (마이그레이션용)
-ANTHROPIC_API_KEY     - AI 기능 활성화 시 필요
-NEXT_PUBLIC_API_BASE_URL - https://your-domain.vercel.app (앱에서 API 호출용)
-```
-
----
-
-### 3단계: React Native (Expo) 앱
-
-별도 프로젝트로 모바일 앱 생성. 기존 API 서버는 그대로 사용.
-
-**프로젝트 구조**
-```
-finance-app/          ← 기존 Next.js (API 서버 + 웹)
-finance-app-mobile/   ← Expo 신규 프로젝트
-```
-
-**주요 작업**
-- Expo 프로젝트 생성
-- API 클라이언트 모듈 작성 (`NEXT_PUBLIC_API_BASE_URL` 기반)
-- 모바일 전용 인증 전략 결정 (아래 참고)
-- 파일 업로드 UX 구현 (Expo 플러그인 사용)
-- 앱스토어 배포 준비
+- 서비스 워커 JS 직접 작성 금지 (next-pwa 추상화 사용)
+- `/api/*` 라우트 캐싱 금지
+- 기존 CSP 보안 설정 제거 금지
 
 ---
 
-## 주요 검토 사항
+## Phase 2 — API 표준화
 
-### 인증 전략
+**브랜치:** `feature/api-standardization`
+**선행 조건:** Phase 5(AI 기능) 완료 후 진행 권장
 
-| 단계 | 방식 |
-|------|------|
-| PWA (1단계) | 기존 NextAuth 그대로 사용 |
-| React Native (3단계) | 아래 3가지 중 선택 |
+### 현재 API 응답 형식 (불일치)
 
-React Native 인증 선택지:
-1. **기존 NextAuth API 연동 유지** — 변경 최소, 쿠키 처리 복잡
-2. **Supabase Auth 전환** — 장기적으로 앱/웹 통합에 유리
-3. **자체 JWT API 구현** — `/api/mobile/auth` 별도 엔드포인트
+| 라우트 | 성공 응답 | 오류 응답 |
+|--------|-----------|-----------|
+| `GET /api/transactions` | `{ transactions, total, page, totalPages }` | `{ error }` |
+| `GET /api/budgets` | `{ year, month, items }` | `{ error }` |
+| `GET /api/goals` | 배열 직접 반환 | `{ error }` |
+| `GET /api/health` | 객체 직접 반환 | `{ error }` |
 
-> 현재 권장: 3단계 진입 시점에 재검토. 지금 갈아엎을 필요 없음.
+### 목표 표준 형식
+
+```json
+{
+  "success": true,
+  "data": {},
+  "error": null
+}
+```
+
+### 태스크
+
+1. **응답 헬퍼 생성** — `src/lib/api-response.ts`
+   ```typescript
+   export function apiSuccess(data: unknown, status = 200) {
+     return NextResponse.json({ success: true, data, error: null }, { status });
+   }
+   export function apiError(message: string, status: number) {
+     return NextResponse.json({ success: false, data: null, error: message }, { status });
+   }
+   ```
+2. **16개 API 라우트 업데이트** — 표준 형식 적용
+3. **프론트엔드 컴포넌트 업데이트** — API 응답 소비 코드 모두 수정
+4. **CORS 헤더 추가** — 모바일 클라이언트를 위한 설정
+5. **환경변수 추가** — `NEXT_PUBLIC_API_BASE_URL`
+6. **API 문서 업데이트** — `docs/api.md` 최신화
+
+### 주의사항
+
+- 대규모 변경: 16개 라우트 + 연관 프론트엔드 컴포넌트 동시 수정
+- 기존 대시보드 회귀 테스트 필수
+- 한 번에 모든 라우트 변경 (부분 적용 금지)
+
+### 검증
+
+- 모든 API 라우트가 `{ success, data, error }` 반환
+- 기존 대시보드 정상 동작
+- `docs/api.md` 업데이트 완료
 
 ---
 
-### 파일 업로드 UX
+## Phase 3 — React Native (Expo)
 
-웹과 달리 모바일에서는 아래 방식이 필요:
-- 파일 선택: `expo-document-picker`
-- 카메라 촬영 / 갤러리 선택: `expo-image-picker`
+**레포지토리:** 별도 레포 `podo-mobile` (현재 레포에 추가 금지)
+**선행 조건:** Phase 1 + Phase 2 완료, 웹 앱 안정화 후
 
-기존 `/api/upload`는 그대로 재사용 가능.
-모바일 클라이언트에서 multipart/form-data로 전송하는 방식 유지.
+### 아키텍처
+
+```
+podo-mobile
+    ↓
+https://podo-web.vercel.app/api/*
+    ↓
+  Prisma
+    ↓
+Supabase PostgreSQL
+```
+
+**규칙:** 모바일 앱은 PostgreSQL 또는 Supabase DB 테이블에 직접 연결 금지.
+모든 DB 접근은 반드시 기존 백엔드 API 레이어를 통해서만 허용.
+
+### 태스크
+
+1. `npx create-expo-app podo-mobile` 프로젝트 생성
+2. API 클라이언트 모듈 구현 (base URL: `https://podo-web.vercel.app/api`)
+3. 모바일 인증 흐름 구현 (전략은 `mobile_strategy.md` 참고 — 개발 시작 시 재검토)
+4. 파일 업로드 UX (`expo-document-picker` 사용, 기존 `/api/upload` 재사용)
+5. 앱 스토어 배포 준비
 
 ---
 
-### CORS 처리
+## 브랜치 전략
 
-- **웹 (동일 도메인)**: 문제 없음
-- **모바일 앱 (외부 호출)**: CORS + 인증 쿠키 문제 발생 가능
+```
+main
+  └── feature/pwa              ← Phase 1 PWA
+  └── feature/api-standardization  ← Phase 2 API 표준화
 
-대응 방안: 모바일 전용 API 엔드포인트 분리 (3단계에서 검토)
+podo-mobile (별도 레포)        ← Phase 3 React Native
 ```
-/api/mobile/auth
-/api/mobile/upload
-/api/mobile/transactions
-```
-> 1~2단계에서는 불필요. React Native 개발 시작 시 검토.
 
 ---
 
 ## 변경 불필요 항목
 
-- PostgreSQL / Supabase — 그대로 사용
-- Prisma 스키마 — 그대로 사용
-- 기존 `/api/*` 라우트 — 그대로 재사용
-- Vercel 배포 — 그대로 유지
-
----
-
-## 현재 상태 (2026-05-21 기준)
-
-- [x] Next.js 웹앱 배포 완료 (Vercel)
-- [x] PostgreSQL / Supabase 연동
-- [x] 파일 업로드 & 거래 파싱
-- [x] 카테고리 자동 분류
-- [x] 예산 및 리포트
-- [ ] PWA 적용
-- [ ] API 표준화
-- [ ] React Native 앱
+- PostgreSQL
+- Supabase
+- Prisma 스키마
+- 기존 `/api/*` 라우트 구조
+- Vercel 배포 설정

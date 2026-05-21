@@ -7,6 +7,7 @@ const CSP = [
   "img-src 'self' data: blob:",
   "connect-src 'self'",
   "font-src 'self'",
+  "worker-src 'self'", // Required for service worker registration
   "frame-ancestors 'none'",
 ].join("; ");
 
@@ -23,6 +24,14 @@ const nextConfig: NextConfig = {
           { key: "X-XSS-Protection",           value: "1; mode=block" },
           { key: "Permissions-Policy",         value: "camera=(), microphone=(), geolocation=()" },
           { key: "Content-Security-Policy",    value: CSP },
+        ],
+      },
+      {
+        // Service worker must never be cached — always fetch latest version
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type",    value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control",   value: "no-cache, no-store, must-revalidate" },
         ],
       },
     ];
