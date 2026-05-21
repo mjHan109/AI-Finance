@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { classifyByKeywords, mapBanksaladCategory } from "@/modules/categories/rules";
+import { classifyTransaction, buildCorrectionMap } from "@/modules/categories/classify";
 import { log } from "@/lib/logger";
 
 const RECLASSIFY_COOLDOWN_MS = 60 * 1000;
@@ -32,7 +32,6 @@ export async function POST() {
       data: { lastReclassifyAt: new Date() },
     });
 
-    // Load user corrections (highest priority) and categories in parallel
     const [transactions, categories, corrections] = await Promise.all([
       prisma.transaction.findMany({
         where: { userId, isIncome: false, classifiedBy: { not: "USER" } },
@@ -48,32 +47,20 @@ export async function POST() {
     const catMap: Record<string, string> = {};
     for (const c of categories) catMap[c.name] = c.id;
 
-    // Build correction lookup: pattern (lowercased) → categoryId
-    const correctionMap: Record<string, string> = {};
-    for (const c of corrections) correctionMap[c.pattern] = c.categoryId;
+    const correctionMap = buildCorrectionMap(corrections);
 
-    // Classify each transaction: user correction → aiCategory → keyword rule
+    // Classify each transaction using the unified pipeline with normalization
     const grouped: Record<string, string[]> = {};
 
     for (const tx of transactions) {
-      let categoryId: string | null = null;
+      const result = classifyTransaction({
+        description:   tx.description,
+        aiCategory:    tx.aiCategory,
+        correctionMap,
+        catMap,
+      });
 
-      // 1. User correction (exact description match)
-      const corrected = correctionMap[tx.description.toLowerCase()];
-      if (corrected) {
-        categoryId = corrected;
-      } else if (tx.aiCategory) {
-        // 2. AI category mapping
-        const mapped = mapBanksaladCategory(tx.aiCategory);
-        if (mapped) categoryId = catMap[mapped] ?? null;
-      }
-      // 3. Keyword rule fallback
-      if (!categoryId) {
-        const rule = classifyByKeywords(tx.description);
-        categoryId = catMap[rule.name] ?? catMap["기타"] ?? null;
-      }
-
-      const key = categoryId ?? "__null__";
+      const key = result.categoryId ?? "__null__";
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(tx.id);
     }

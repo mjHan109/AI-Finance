@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { txPatchSchema, safeParse } from "@/lib/schemas";
 import { encrypt, decrypt } from "@/lib/encryption";
+import { normalizeMerchant } from "@/modules/categories/normalize";
 
 export async function GET(
   _req: NextRequest,
@@ -67,12 +68,14 @@ export async function PATCH(
       data.categoryId   = categoryId ?? null;
       data.classifiedBy = "USER";
 
-      // Save UserCorrection so reclassify respects this choice going forward
+      // Save UserCorrection with normalized pattern so it matches future
+      // variants (e.g. "스타벅스 강남점" → pattern "스타벅스")
       if (categoryId !== null) {
+        const normalizedPattern = normalizeMerchant(existing.description).toLowerCase();
         await prisma.userCorrection.upsert({
-          where: { userId_pattern: { userId: session.user.id, pattern: existing.description.toLowerCase() } },
-          update: { categoryId },
-          create: { userId: session.user.id, pattern: existing.description.toLowerCase(), categoryId },
+          where:  { userId_pattern: { userId: session.user.id, pattern: normalizedPattern } },
+          update: { categoryId, displayName: existing.description },
+          create: { userId: session.user.id, pattern: normalizedPattern, categoryId, displayName: existing.description },
         });
       }
     }

@@ -3,7 +3,8 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { parseFile } from "@/modules/files/parse"
 import { fingerprint } from "@/modules/files/normalize"
-import { classifyByKeywords, mapBanksaladCategory } from "@/modules/categories/rules"
+import { mapBanksaladCategory } from "@/modules/categories/rules"
+import { classifyTransaction, buildCorrectionMap } from "@/modules/categories/classify"
 import { log } from "@/lib/logger"
 
 const MAX_FILE_SIZE    = 10 * 1024 * 1024
@@ -109,8 +110,11 @@ export async function POST(req: NextRequest) {
     where: { userId },
     select: { pattern: true, categoryId: true },
   })
-  const correctionMap: Record<string, string> = {}
-  for (const c of corrections) correctionMap[c.pattern] = c.categoryId
+  const correctionMap = buildCorrectionMap(corrections)
+
+  // Build plain catMap for classifyTransaction
+  const catMap: Record<string, string> = {}
+  for (const [name, id] of categoryCache) catMap[name] = id
 
   let savedCount = 0
   let dupCount   = 0
@@ -127,22 +131,26 @@ export async function POST(req: NextRequest) {
     if (tx.isIncome) {
       categoryId = categoryCache.get("금융/이체") ?? null
     } else {
-      // 1. User correction
-      const corrected = correctionMap[tx.description.toLowerCase()]
-      if (corrected) {
-        categoryId = corrected
-      } else if (tx.suggestedCategory) {
-        // 2. Banksalad mapping
+      // Skip 이체/transfer type from Banksalad suggestion (not an expense)
+      if (tx.suggestedCategory) {
         const mapped = mapBanksaladCategory(tx.suggestedCategory)
         if (mapped === "금융/이체") { dupCount++; continue }
-        if (mapped) categoryId = categoryCache.get(mapped) ?? null
       }
-      // 3. Keyword rule
-      if (!categoryId) {
-        const rule = classifyByKeywords(tx.description)
-        if (rule.name === "금융/이체") { dupCount++; continue }
-        categoryId = categoryCache.get(rule.name) ?? categoryCache.get("기타") ?? null
+
+      const result = classifyTransaction({
+        description:   tx.description,
+        aiCategory:    tx.suggestedCategory,
+        correctionMap,
+        catMap,
+      })
+
+      // Skip transfers detected via keyword rules
+      if (result.source === "keyword_rule" || result.source === "fallback") {
+        const catName = Object.entries(catMap).find(([, id]) => id === result.categoryId)?.[0]
+        if (catName === "금융/이체") { dupCount++; continue }
       }
+
+      categoryId = result.categoryId
     }
 
     await prisma.transaction.create({

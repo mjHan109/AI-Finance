@@ -147,12 +147,13 @@ model Category {
 }
 
 model UserCorrection {
-  id         String   @id @default(cuid())
-  userId     String
-  pattern    String
-  categoryId String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String
+  pattern     String   // normalized + lowercased merchant name
+  categoryId  String
+  displayName String?  // original raw description before normalization (for UI display)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id])
