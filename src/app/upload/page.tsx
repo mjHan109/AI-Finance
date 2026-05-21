@@ -1,4 +1,5 @@
 import { UploadForm } from "./upload-form"
+import { UploadHistory } from "./upload-history"
 
 export default function UploadPage() {
   return (
@@ -12,6 +13,7 @@ export default function UploadPage() {
           </p>
         </div>
         <UploadForm />
+        <UploadHistory />
       </div>
     </div>
   )
