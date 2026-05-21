@@ -6,7 +6,26 @@ import { fingerprint } from "@/modules/files/normalize"
 import { classifyByKeywords, mapBanksaladCategory } from "@/modules/categories/rules"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-const ALLOWED_TYPES = ["xlsx", "xls", "csv"]
+const ALLOWED_EXTS = ["xlsx", "xls", "csv"]
+// xlsx/xls = PK zip magic (50 4B), csv = no binary check needed
+const XLSX_MAGIC = Buffer.from([0x50, 0x4b])
+const XLS_MAGIC  = Buffer.from([0xd0, 0xcf])
+
+// 업로드 rate limit: 사용자당 1시간에 최대 20회
+const UPLOAD_LIMIT = 20
+const UPLOAD_WINDOW_MS = 60 * 60 * 1000
+
+function sanitizeString(s: string | null, maxLen: number): string | null {
+  if (!s) return null
+  return s.trim().slice(0, maxLen).replace(/[<>"'`]/g, "")
+}
+
+function validateMagicBytes(buffer: Buffer, ext: string): boolean {
+  if (ext === "xlsx") return buffer.slice(0, 2).equals(XLSX_MAGIC)
+  if (ext === "xls")  return buffer.slice(0, 2).equals(XLS_MAGIC)
+  // csv: UTF-8 text — ensure no null bytes
+  return !buffer.slice(0, 512).includes(0x00)
+}
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -15,29 +34,48 @@ export async function POST(req: NextRequest) {
   }
   const userId = session.user.id
 
+  // ── Rate limit ──
+  const since = new Date(Date.now() - UPLOAD_WINDOW_MS)
+  const recentCount = await prisma.uploadedFile.count({
+    where: { userId, parsedAt: { gte: since } },
+  })
+  if (recentCount >= UPLOAD_LIMIT) {
+    return NextResponse.json(
+      { error: "1시간에 최대 20회까지 업로드할 수 있습니다." },
+      { status: 429 }
+    )
+  }
+
   const formData = await req.formData()
   const file = formData.get("file") as File | null
-  const accountName = formData.get("accountName") as string | null
-  const accountType = formData.get("accountType") as string | null
+  const rawAccountName = formData.get("accountName") as string | null
+  const rawAccountType = formData.get("accountType") as string | null
+
+  const accountName = sanitizeString(rawAccountName, 50)
+  const accountType = sanitizeString(rawAccountType, 10)
 
   if (!file) {
     return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 })
   }
 
-  // 확장자 검증
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
-  if (!ALLOWED_TYPES.includes(ext)) {
+  // 파일명 안전 검사
+  const safeName = file.name.replace(/[^a-zA-Z0-9가-힣._\-\s]/g, "")
+  const ext = safeName.split(".").pop()?.toLowerCase() ?? ""
+  if (!ALLOWED_EXTS.includes(ext)) {
     return NextResponse.json({ error: "xlsx, xls, csv 파일만 업로드 가능합니다." }, { status: 400 })
   }
 
-  // 크기 검증
   if (file.size > MAX_FILE_SIZE) {
     return NextResponse.json({ error: "파일 크기는 10MB를 초과할 수 없습니다." }, { status: 400 })
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
-  // 파싱
+  // Magic byte 검증
+  if (!validateMagicBytes(buffer, ext)) {
+    return NextResponse.json({ error: "파일 형식이 올바르지 않습니다." }, { status: 400 })
+  }
+
   const parsed = await parseFile(buffer, file.name)
 
   if (parsed.transactions.length === 0) {
@@ -47,7 +85,7 @@ export async function POST(req: NextRequest) {
     }, { status: 422 })
   }
 
-  // 계좌 upsert (이름+타입 있으면)
+  // 계좌 upsert
   let financialAccountId: string | null = null
   if (accountName && accountType) {
     const validTypes = ["BANK", "CARD", "CASH"]
@@ -63,23 +101,20 @@ export async function POST(req: NextRequest) {
     financialAccountId = account.id
   }
 
-  // 파일 기록 저장
   const uploadedFile = await prisma.uploadedFile.create({
     data: {
       userId,
-      originalName: file.name,
+      originalName: safeName.slice(0, 255),
       fileType: ext,
       rowCount: parsed.rowCount,
-      deletedAt: new Date(), // 소스 파일은 메모리에서만 처리, 즉시 삭제 처리
+      deletedAt: new Date(),
     },
   })
 
-  // 카테고리 캐시 (name → id)
   const categoryCache = new Map<string, string>()
   const allCategories = await prisma.category.findMany({ select: { id: true, name: true } })
   for (const c of allCategories) categoryCache.set(c.name, c.id)
 
-  // 트랜잭션 저장 (중복 skip)
   let savedCount = 0
   let dupCount = 0
 
@@ -91,23 +126,17 @@ export async function POST(req: NextRequest) {
     })
     if (existing) { dupCount++; continue }
 
-    // 카테고리 분류 우선순위:
-    // 1. 뱅크샐러드 자체 카테고리 → 2. 키워드 매칭 → 3. 기타
     let categoryId: string | null = null
     if (tx.isIncome) {
       categoryId = categoryCache.get("금융/이체") ?? null
     } else {
-      // 1순위: 뱅크샐러드 분류 컬럼
       if (tx.suggestedCategory) {
         const mapped = mapBanksaladCategory(tx.suggestedCategory)
-        // 내 계좌 이체(금융/이체)로 분류된 지출은 저장 제외
         if (mapped === "금융/이체") { dupCount++; continue }
         if (mapped) categoryId = categoryCache.get(mapped) ?? null
       }
-      // 2순위: 키워드 매칭
       if (!categoryId) {
         const rule = classifyByKeywords(tx.description)
-        // 이체 키워드로 분류된 지출도 제외
         if (rule.name === "금융/이체") { dupCount++; continue }
         categoryId = categoryCache.get(rule.name) ?? categoryCache.get("기타") ?? null
       }
@@ -116,18 +145,18 @@ export async function POST(req: NextRequest) {
     await prisma.transaction.create({
       data: {
         userId,
-        fileId: uploadedFile.id,
+        fileId:            uploadedFile.id,
         financialAccountId,
         categoryId,
-        classifiedBy: "RULE",
-        rawDate:        tx.rawDate,
-        rawDescription: tx.rawDescription,
-        rawAmount:      tx.rawAmount,
-        date:           tx.date,
-        description:    tx.description,
-        amount:         Math.abs(tx.amount),
-        isIncome:       tx.isIncome,
-        fingerprint:    fp,
+        classifiedBy:      "RULE",
+        rawDate:           tx.rawDate,
+        rawDescription:    tx.rawDescription,
+        rawAmount:         tx.rawAmount,
+        date:              tx.date,
+        description:       tx.description,
+        amount:            Math.abs(tx.amount),
+        isIncome:          tx.isIncome,
+        fingerprint:       fp,
       },
     })
     savedCount++
@@ -135,10 +164,10 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    source: parsed.source,
-    total:  parsed.rowCount,
-    saved:  savedCount,
+    source:     parsed.source,
+    total:      parsed.rowCount,
+    saved:      savedCount,
     duplicates: dupCount,
-    errors: parsed.errors,
+    errors:     parsed.errors,
   })
 }

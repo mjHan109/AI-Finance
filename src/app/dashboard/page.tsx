@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CategoryDonut } from "@/components/charts/CategoryDonut";
 import { MonthlyBar } from "@/components/charts/MonthlyBar";
+import { FinancialHealthCard } from "@/components/FinancialHealthCard";
 import { formatKRW } from "@/lib/utils";
 
 async function getDashboardData(userId: string) {
@@ -192,6 +193,9 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 재정 건강 + 차트 */}
+      <FinancialHealthCard />
 
       {/* 차트 2개 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

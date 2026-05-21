@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { classifyByKeywords, mapBanksaladCategory } from "@/modules/categories/rules";
 
+const RECLASSIFY_COOLDOWN_MS = 60 * 1000; // 60초
+
 export async function POST() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -10,9 +12,31 @@ export async function POST() {
   }
   const userId = session.user.id;
 
+  // Rate limit: lastReclassifyAt 기준 60초 쿨다운
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { lastReclassifyAt: true },
+  });
+  if (user?.lastReclassifyAt) {
+    const elapsed = Date.now() - user.lastReclassifyAt.getTime();
+    if (elapsed < RECLASSIFY_COOLDOWN_MS) {
+      const waitSec = Math.ceil((RECLASSIFY_COOLDOWN_MS - elapsed) / 1000);
+      return NextResponse.json(
+        { error: `${waitSec}초 후 다시 시도해주세요.` },
+        { status: 429 }
+      );
+    }
+  }
+
+  // lastReclassifyAt 갱신
+  await prisma.user.update({
+    where: { id: userId },
+    data: { lastReclassifyAt: new Date() },
+  });
+
   const [transactions, categories] = await Promise.all([
     prisma.transaction.findMany({
-      where: { userId, isIncome: false },
+      where: { userId, isIncome: false, classifiedBy: { not: "USER" } },
       select: { id: true, description: true, aiCategory: true },
     }),
     prisma.category.findMany({ select: { id: true, name: true } }),
@@ -23,7 +47,6 @@ export async function POST() {
   let updated = 0;
 
   for (const tx of transactions) {
-    // 뱅크샐러드 aiCategory 힌트가 있으면 우선 사용
     let categoryId: string | null = null;
     if (tx.aiCategory) {
       const mapped = mapBanksaladCategory(tx.aiCategory);

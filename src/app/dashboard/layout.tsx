@@ -10,13 +10,15 @@ import {
   BarChart2,
   Upload,
   LogOut,
+  Flag,
 } from "lucide-react";
 
 const NAV = [
-  { href: "/dashboard", label: "홈", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard",              label: "홈",      icon: LayoutDashboard, exact: true },
   { href: "/dashboard/transactions", label: "거래 내역", icon: List },
-  { href: "/dashboard/budget", label: "예산", icon: Target },
-  { href: "/dashboard/reports", label: "리포트", icon: BarChart2 },
+  { href: "/dashboard/budget",       label: "예산",    icon: Target },
+  { href: "/dashboard/goals",        label: "목표",    icon: Flag },
+  { href: "/dashboard/reports",      label: "리포트",  icon: BarChart2 },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
