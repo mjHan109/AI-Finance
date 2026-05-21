@@ -94,7 +94,7 @@ export function TransactionDetailModal({ txId, categories, onClose, onUpdated }:
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
-      <div className="w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden">
+      <div className="w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden max-h-[85dvh] sm:max-h-[90vh] flex flex-col" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-base font-semibold text-foreground">거래 상세</h2>
@@ -106,7 +106,7 @@ export function TransactionDetailModal({ txId, categories, onClose, onUpdated }:
         {loading || !tx ? (
           <div className="py-16 text-center text-sm text-muted-foreground">불러오는 중...</div>
         ) : (
-          <div className="px-5 py-4 space-y-4">
+          <div className="px-5 py-4 space-y-4 overflow-y-auto">
             {/* 금액 + 설명 */}
             <div className="flex items-start justify-between">
               <div>

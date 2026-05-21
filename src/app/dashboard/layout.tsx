@@ -75,13 +75,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* 메인 컨텐츠 */}
-      <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+      {/* 메인 컨텐츠 — pb accounts for bottom nav height + safe area inset */}
+      <main className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
         {children}
       </main>
 
       {/* 하단 네비게이션 — 모바일만 */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card"
+           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {NAV.map(({ href, label, icon: Icon, exact }) => (
           <Link
             key={href}

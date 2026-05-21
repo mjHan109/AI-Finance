@@ -17,6 +17,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Podo 🍇",
   description: "포도처럼 알차게, AI 개인 재정 관리",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover", // Required for iPhone notch / home indicator safe area
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Podo",
+  },
 };
 
 export default function RootLayout({
