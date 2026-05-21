@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TrendingDown, TrendingUp, Wallet, ArrowRight } from "lucide-react";
+import { RecentTransactions } from "@/components/RecentTransactions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
@@ -20,25 +21,26 @@ async function getDashboardData(userId: string) {
   const prevMonthEnd   = new Date(year, month, 0, 23, 59, 59);
 
   // 이번 달 요약
-  const [incomeAgg, expenseAgg, prevExpenseAgg, recentTx] = await Promise.all([
+  const [incomeAgg, expenseAgg, prevExpenseAgg, recentTx, allCategories] = await Promise.all([
     prisma.transaction.aggregate({
-      where: { userId, isIncome: true,  date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { userId, isExcluded: false, isIncome: true,  date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.transaction.aggregate({
-      where: { userId, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.transaction.aggregate({
-      where: { userId, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
+      where: { userId, isExcluded: false, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
       _sum: { amount: true },
     }),
     prisma.transaction.findMany({
-      where: { userId },
+      where: { userId, isExcluded: false },
       orderBy: { date: "desc" },
       take: 5,
       include: { category: true },
     }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   // 카테고리별 지출 (이번 달)
@@ -105,7 +107,7 @@ async function getDashboardData(userId: string) {
 
   return {
     income, expense, expenseChange, savingsRate,
-    recentTx, categoryData, monthlyData,
+    recentTx, categoryData, monthlyData, allCategories,
     label: `${year}년 ${month + 1}월`,
   };
 }
@@ -115,7 +117,7 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  const { income, expense, expenseChange, savingsRate, recentTx, categoryData, monthlyData, label } =
+  const { income, expense, expenseChange, savingsRate, recentTx, categoryData, monthlyData, allCategories, label } =
     await getDashboardData(session.user.id);
 
   const balance = income - expense;
@@ -232,24 +234,7 @@ export default async function DashboardPage() {
               </Link>
             </div>
           ) : (
-            <ul className="divide-y divide-border">
-              {recentTx.map((tx) => (
-                <li key={tx.id} className="flex items-center justify-between py-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{tx.category?.icon ?? "💳"}</span>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{tx.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {tx.category?.name ?? "미분류"} · {new Date(tx.date).toLocaleDateString("ko-KR")}
-                      </p>
-                    </div>
-                  </div>
-                  <p className={`text-sm font-semibold tabular-nums ${!tx.isIncome ? "text-destructive" : "text-emerald-400"}`}>
-                    {!tx.isIncome ? "-" : "+"}{formatKRW(Number(tx.amount))}
-                  </p>
-                </li>
-              ))}
-            </ul>
+            <RecentTransactions transactions={recentTx} categories={allCategories} />
           )}
         </CardContent>
       </Card>

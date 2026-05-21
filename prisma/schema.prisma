@@ -91,6 +91,8 @@ model Transaction {
   aiConfidence       Float?
   classifiedBy       ClassificationSource @default(RULE)
   isSubscription     Boolean  @default(false)
+  memo               String?
+  isExcluded         Boolean  @default(false)
   fingerprint        String
   createdAt          DateTime @default(now())
 

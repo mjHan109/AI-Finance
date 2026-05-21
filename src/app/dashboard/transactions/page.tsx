@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Search, Upload } from "lucide-react";
 import { formatKRW } from "@/lib/utils";
+import { TransactionDetailModal } from "@/components/TransactionDetailModal";
 
 interface Category {
   id: string;
   name: string;
   icon: string | null;
+  color: string | null;
 }
 
 interface Transaction {
@@ -40,6 +42,7 @@ export default function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [reclassifying, setReclassifying] = useState(false);
+  const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
 
   // 카테고리 목록 최초 1회 로드
   useEffect(() => {
@@ -202,7 +205,11 @@ export default function TransactionsPage() {
           ) : (
             <ul className="divide-y divide-border">
               {transactions.map((tx) => (
-                <li key={tx.id} className="flex items-center justify-between px-5 py-3.5">
+                <li
+                  key={tx.id}
+                  onClick={() => setSelectedTxId(tx.id)}
+                  className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-accent/40 transition-colors"
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="text-xl shrink-0">{tx.category?.icon ?? "💳"}</span>
                     <div className="min-w-0">
@@ -221,6 +228,13 @@ export default function TransactionsPage() {
           )}
         </CardContent>
       </Card>
+
+      <TransactionDetailModal
+        txId={selectedTxId}
+        categories={categories}
+        onClose={() => setSelectedTxId(null)}
+        onUpdated={fetchTransactions}
+      />
 
       {/* 페이지네이션 */}
       {totalPages > 1 && (

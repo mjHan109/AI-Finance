@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
   const expenses = await prisma.transaction.groupBy({
     by: ["categoryId"],
-    where: { userId: session.user.id, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
+    where: { userId: session.user.id, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
     _sum: { amount: true },
   });
 

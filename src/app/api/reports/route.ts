@@ -23,10 +23,10 @@ export async function GET(req: NextRequest) {
 
   // ── 이번 달 & 전달 집계 ──
   const [incomeAgg, expenseAgg, prevIncomeAgg, prevExpenseAgg] = await Promise.all([
-    prisma.transaction.aggregate({ where: { userId, isIncome: true,  date: { gte: startOfMonth,  lte: endOfMonth   } }, _sum: { amount: true } }),
-    prisma.transaction.aggregate({ where: { userId, isIncome: false, date: { gte: startOfMonth,  lte: endOfMonth   } }, _sum: { amount: true } }),
-    prisma.transaction.aggregate({ where: { userId, isIncome: true,  date: { gte: prevMonthStart, lte: prevMonthEnd } }, _sum: { amount: true } }),
-    prisma.transaction.aggregate({ where: { userId, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { userId, isExcluded: false, isIncome: true,  date: { gte: startOfMonth,  lte: endOfMonth   } }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth,  lte: endOfMonth   } }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { userId, isExcluded: false, isIncome: true,  date: { gte: prevMonthStart, lte: prevMonthEnd } }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { userId, isExcluded: false, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } }, _sum: { amount: true } }),
   ]);
 
   const income      = Number(incomeAgg._sum.amount      ?? 0);
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   // ── 카테고리별 지출 ──
   const categoryExpenses = await prisma.transaction.groupBy({
     by: ["categoryId"],
-    where: { userId, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
+    where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
     _sum: { amount: true },
     orderBy: { _sum: { amount: "desc" } },
   });
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
   // ── 전달 카테고리별 지출 ──
   const prevCatExpenses = await prisma.transaction.groupBy({
     by: ["categoryId"],
-    where: { userId, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
+    where: { userId, isExcluded: false, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
     _sum: { amount: true },
   });
 
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
   // ── 상위 지출처 TOP 10 ──
   const topMerchants = await prisma.transaction.groupBy({
     by: ["description"],
-    where: { userId, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
+    where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
     _sum: { amount: true },
     _count: { id: true },
     orderBy: { _sum: { amount: "desc" } },
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
 
   // ── 주간/요일 분석 ──
   const monthTx = await prisma.transaction.findMany({
-    where: { userId, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
+    where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
     select: { date: true, amount: true },
   });
 
@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
   // ── 최근 6개월 월별 ──
   const sixMonthsAgo = new Date(year, month - 6, 1);
   const allTx = await prisma.transaction.findMany({
-    where: { userId, date: { gte: sixMonthsAgo } },
+    where: { userId, isExcluded: false, date: { gte: sixMonthsAgo } },
     select: { date: true, amount: true, isIncome: true },
   });
 

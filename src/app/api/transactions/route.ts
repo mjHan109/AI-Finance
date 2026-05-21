@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
 
   const where = {
     userId: session.user.id,
+    isExcluded: false,
     date: { gte: startOfMonth, lte: endOfMonth },
     ...(search ? { description: { contains: search, mode: "insensitive" as const } } : {}),
     ...(categoryId ? { categoryId } : {}),
