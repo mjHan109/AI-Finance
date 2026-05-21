@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { CategoryDonut } from "@/components/charts/CategoryDonut";
 import { MonthlyBar } from "@/components/charts/MonthlyBar";
 import { FinancialHealthCard, type HealthData } from "@/components/FinancialHealthCard";
+import { InsightCards } from "@/components/InsightCards";
+import { generateInsights, type InsightInput } from "@/modules/insights/deterministic";
 import { formatKRW } from "@/lib/utils";
 
 async function getDashboardData(userId: string) {
@@ -154,10 +156,34 @@ async function getDashboardData(userId: string) {
     overBudgetCount, totalBudget, tips,
   };
 
+  // Build category name map from allCategories for overBudget lookup
+  type CatAll = (typeof allCategories)[number];
+  const allCatMap: Record<string, string> = {};
+  for (const c of allCategories as CatAll[]) allCatMap[c.id] = c.name;
+
+  const overBudgetItems = budgetItems
+    .filter((b) => (spentMap[b.categoryId] ?? 0) > Number(b.amount))
+    .map((b) => ({
+      categoryName: allCatMap[b.categoryId] ?? "기타",
+      spent:  spentMap[b.categoryId] ?? 0,
+      budget: Number(b.amount),
+    }));
+
+  const insightInput: InsightInput = {
+    income,
+    expense,
+    prevExpense: prevExpense > 0 ? prevExpense : null,
+    savingsRate: income > 0 ? Math.round(savingsRateRaw * 100) : null,
+    categoryBreakdown: categoryData,
+    overBudgetItems,
+    budgetSetCount: budgetItems.length,
+  };
+  const insights = generateInsights(insightInput);
+
   return {
     income, expense, expenseChange, savingsRate,
     recentTx, categoryData, monthlyData, allCategories,
-    healthData,
+    healthData, insights,
     label: `${year}년 ${month + 1}월`,
   };
 }
@@ -167,7 +193,7 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  const { income, expense, expenseChange, savingsRate, recentTx, categoryData, monthlyData, allCategories, healthData, label } =
+  const { income, expense, expenseChange, savingsRate, recentTx, categoryData, monthlyData, allCategories, healthData, insights, label } =
     await getDashboardData(session.user.id);
 
   const balance = income - expense;
@@ -245,6 +271,9 @@ export default async function DashboardPage() {
 
       {/* 재정 건강 점수 */}
       <FinancialHealthCard data={healthData} />
+
+      {/* 인사이트 카드 */}
+      <InsightCards insights={insights} />
 
       {/* 차트 2개 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -5,6 +5,7 @@ type Event =
   | "upload"
   | "reclassify"
   | "ai_insight"
+  | "ai_insight_deterministic"
   | "unauthorized"
   | "rate_limited"
   | "validation_error"
