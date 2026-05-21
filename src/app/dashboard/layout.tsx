@@ -28,8 +28,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* 사이드바 */}
-      <aside className="w-56 shrink-0 flex flex-col border-r border-border bg-card">
+      {/* 사이드바 — 데스크탑만 */}
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-card">
         {/* 로고 */}
         <div className="px-5 py-5 flex items-center gap-2 border-b border-border">
           <span className="text-2xl">🍇</span>
@@ -74,9 +74,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* 메인 컨텐츠 */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
         {children}
       </main>
+
+      {/* 하단 네비게이션 — 모바일만 */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card">
+        {NAV.map(({ href, label, icon: Icon, exact }) => (
+          <Link
+            key={href}
+            href={href}
+            className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors
+              ${isActive(href, exact)
+                ? "text-primary"
+                : "text-muted-foreground"
+              }`}
+          >
+            <Icon size={20} />
+            <span className="text-[10px] font-medium">{label}</span>
+          </Link>
+        ))}
+        <Link
+          href="/upload"
+          className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-muted-foreground transition-colors"
+        >
+          <Upload size={20} />
+          <span className="text-[10px] font-medium">업로드</span>
+        </Link>
+      </nav>
     </div>
   );
 }
