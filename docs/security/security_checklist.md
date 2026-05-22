@@ -33,9 +33,9 @@ Legend: ✅ Done · ⬜ Pending · 🔜 Future
 | Ownership validation — Goals | ✅ |
 | Ownership validation — Upload history | ✅ |
 | Ownership validation — Reports | ✅ |
-| Route middleware protection (middleware.ts) | ✅ All protected routes guarded via Next.js middleware |
+| Route proxy protection (proxy.ts) | ✅ All protected routes guarded via Next.js proxy |
 
-> **Note:** Next.js only recognises `middleware.ts` at the project root (or `src/`). Any other name (e.g. `proxy.ts`) is silently ignored and provides no protection. This was the root cause of the earlier unprotected production routes.
+> **Note (Next.js 16 convention):** This Next.js 16 fork uses `proxy.ts` (not `middleware.ts`). The file must be at the project root or inside `src/`. The old name `middleware.ts` still works but triggers a deprecation warning at build time. The earlier production protection failure was caused by the file having incorrect session cookie names (`next-auth.*` instead of `authjs.*`) — not by the filename.
 
 ---
 
