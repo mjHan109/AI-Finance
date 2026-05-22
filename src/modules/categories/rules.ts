@@ -281,6 +281,11 @@ const BANKSALAD_CATEGORY_MAP: Record<string, string> = {
   "금융": "금융/이체",
   "이체": "금융/이체",
   "보험": "금융/이체",
+  "저축": "저축/적금",
+  "적금": "저축/적금",
+  "저축/적금": "저축/적금",
+  "예금": "저축/적금",
+  "투자": "투자",
 };
 
 export function mapBanksaladCategory(bsCategory: string): string | null {

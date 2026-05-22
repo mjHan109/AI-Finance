@@ -22,33 +22,26 @@ export async function GET() {
 
     const baseWhere = { userId, isExcluded: false };
 
-    const [incomeAgg, expenseAgg, prevExpenseAgg, budgetItems] = await Promise.all([
+    const [incomeAgg, budgetItems, catExpenses, prevCatExpenses] = await Promise.all([
       prisma.transaction.aggregate({
-        where: { ...baseWhere, isIncome: true,  date: { gte: startOfMonth, lte: endOfMonth } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { ...baseWhere, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { ...baseWhere, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
+        where: { ...baseWhere, isIncome: true, date: { gte: startOfMonth, lte: endOfMonth } },
         _sum: { amount: true },
       }),
       prisma.budget.findMany({
         where: { userId, year, month: month + 1 },
         select: { amount: true, categoryId: true },
       }),
+      prisma.transaction.findMany({
+        where: { ...baseWhere, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
+        select: { categoryId: true, amount: true, category: { select: { flowType: true } } },
+      }),
+      prisma.transaction.findMany({
+        where: { ...baseWhere, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
+        select: { amount: true, category: { select: { flowType: true } } },
+      }),
     ]);
 
-    const income      = Number(incomeAgg._sum.amount  ?? 0);
-    const expense     = Number(expenseAgg._sum.amount ?? 0);
-    const prevExpense = Number(prevExpenseAgg._sum.amount ?? 0);
-
-    const catExpenses = await prisma.transaction.findMany({
-      where: { ...baseWhere, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
-      select: { categoryId: true, amount: true, category: { select: { flowType: true } } },
-    });
+    const income = Number(incomeAgg._sum.amount ?? 0);
 
     const spentMap: Record<string, number> = {};
     for (const r of catExpenses) {
@@ -61,6 +54,13 @@ export async function GET() {
     }));
     const flow = computeFlowSummary(income, flowRows);
     const savingsRateRaw = flow.savingsRate !== null ? flow.savingsRate / 100 : 0;
+
+    const prevFlowRows = prevCatExpenses.map(r => ({
+      amount: Number(r.amount),
+      flowType: (r.category?.flowType ?? "CONSUMPTION") as import("@/lib/flow").CategoryFlowType,
+    }));
+    const prevFlow = computeFlowSummary(0, prevFlowRows);
+    const prevConsumption = prevFlow.consumption;
 
     let overBudgetCount = 0;
     let totalBudget = 0;
@@ -77,8 +77,8 @@ export async function GET() {
     else if (savingsRate >= 0.1) score += 10;
     else if (savingsRate < 0)    score -= 20;
 
-    if (prevExpense > 0) {
-      const changeRate = (expense - prevExpense) / prevExpense;
+    if (prevConsumption > 0) {
+      const changeRate = (flow.consumption - prevConsumption) / prevConsumption;
       if      (changeRate <= -0.1) score += 15;
       else if (changeRate <= 0)    score += 5;
       else if (changeRate > 0.2)   score -= 15;
@@ -103,8 +103,8 @@ export async function GET() {
     if (savingsRateRaw < 0.1 && income > 0) tips.push("저축률을 10% 이상으로 높여보세요.");
     if (overBudgetCount > 0)             tips.push(`예산을 초과한 카테고리가 ${overBudgetCount}개 있어요.`);
     if (budgetItems.length === 0)        tips.push("카테고리별 예산을 설정하면 점수가 올라가요.");
-    if (prevExpense > 0 && (expense - prevExpense) / prevExpense > 0.1)
-      tips.push("지출이 전월 대비 10% 이상 증가했어요.");
+    if (prevConsumption > 0 && (flow.consumption - prevConsumption) / prevConsumption > 0.1)
+      tips.push("소비 지출이 전월 대비 10% 이상 증가했어요.");
 
     return NextResponse.json({
       score, level, levelLabel,

@@ -247,6 +247,7 @@ export default async function DashboardPage() {
                 전월 대비 {expenseChange > 0 ? "▲" : "▼"} {Math.abs(expenseChange)}%
               </p>
             )}
+            {hasData && <p className="text-[10px] mt-1 text-muted-foreground/50">저축·이체 제외</p>}
           </CardContent>
         </Card>
 
@@ -260,6 +261,7 @@ export default async function DashboardPage() {
             <p className={`text-xl font-bold tabular-nums ${balance >= 0 ? "text-primary" : "text-destructive"}`}>
               {hasData ? `${balance.toLocaleString()}원` : "-"}
             </p>
+            {hasData && <p className="text-[10px] mt-1 text-muted-foreground/50">수입 − 소비 − 저축</p>}
           </CardContent>
         </Card>
 
@@ -268,6 +270,7 @@ export default async function DashboardPage() {
             <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <Wallet size={12} className="text-amber-400" /> 저축률
             </CardTitle>
+            <p className="text-[10px] text-muted-foreground/50 -mt-0.5">(저축+투자) / 수입</p>
           </CardHeader>
           <CardContent className="pb-4">
             <p className={`text-xl font-bold tabular-nums ${(savingsRate ?? 0) >= 0 ? "text-amber-400" : "text-destructive"}`}>
