@@ -51,10 +51,10 @@ export function MonthlyBar({ data }: Props) {
         />
         <YAxis
           tickFormatter={formatYAxis}
-          tick={{ fontSize: 11, fill: "hsl(var(--foreground))", fontWeight: 500 }}
+          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
           axisLine={false}
           tickLine={false}
-          width={56}
+          width={52}
         />
         <Tooltip
           formatter={(value, name) => [
@@ -69,8 +69,8 @@ export function MonthlyBar({ data }: Props) {
           formatter={(v) => (v === "income" ? "수입" : "지출")}
           wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }}
         />
-        <Bar dataKey="income" fill="hsl(var(--chart-2, 160 60% 45%))" radius={[4, 4, 0, 0]} />
-        <Bar dataKey="expense" fill="hsl(var(--chart-1, 0 72% 51%))" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="income"  fill="#34d399" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="expense" fill="#f87171" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

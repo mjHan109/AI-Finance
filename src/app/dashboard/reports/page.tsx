@@ -22,7 +22,11 @@ interface DowData { day: string; amount: number; }
 interface WeeklyData { week: string; amount: number; }
 
 interface ReportData {
-  income: number; expense: number;
+  income: number;
+  expense: number;       // consumption only
+  consumption: number;
+  savings: number;
+  investment: number;
   prevIncome: number; prevExpense: number;
   incomeChange: number | null; expenseChange: number | null;
   savingsRate: number | null;
@@ -93,7 +97,7 @@ export default function ReportsPage() {
     }
   }
 
-  const hasData = (data?.income ?? 0) > 0 || (data?.expense ?? 0) > 0;
+  const hasData = (data?.income ?? 0) > 0 || (data?.consumption ?? 0) > 0;
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto space-y-6">
@@ -150,20 +154,25 @@ export default function ReportsPage() {
             <Card>
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1.5">
-                  <TrendingDown size={12} className="text-destructive" /> 지출
+                  <TrendingDown size={12} className="text-destructive" /> 소비 지출
                 </div>
-                <p className="text-lg font-bold text-destructive tabular-nums">{formatKRW(data!.expense)}</p>
+                <p className="text-lg font-bold text-destructive tabular-nums">{formatKRW(data!.consumption)}</p>
                 <div className="mt-1"><ChangeBadge value={data!.expenseChange} /></div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1.5">
-                  <Wallet size={12} className="text-primary" /> 순 잔액
+                  <Wallet size={12} className="text-primary" /> 소비 후 잔액
                 </div>
-                <p className={`text-lg font-bold tabular-nums ${(data!.income - data!.expense) >= 0 ? "text-primary" : "text-destructive"}`}>
-                  {(data!.income - data!.expense).toLocaleString()}원
+                <p className={`text-lg font-bold tabular-nums ${(data!.income - data!.consumption) >= 0 ? "text-primary" : "text-destructive"}`}>
+                  {(data!.income - data!.consumption).toLocaleString()}원
                 </p>
+                {(data!.savings + data!.investment) > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1 tabular-nums">
+                    저축/투자 {formatKRW(data!.savings + data!.investment)} 포함
+                  </p>
+                )}
               </CardContent>
             </Card>
             <Card>
@@ -243,7 +252,7 @@ export default function ReportsPage() {
                 ) : (
                   <ul className="space-y-2.5">
                     {data!.categoryData.slice(0, 7).map((cat) => {
-                      const pct = data!.expense > 0 ? (cat.amount / data!.expense) * 100 : 0;
+                      const pct = data!.consumption > 0 ? (cat.amount / data!.consumption) * 100 : 0;
                       return (
                         <li key={cat.name}>
                           <div className="flex items-center justify-between mb-1">
@@ -334,7 +343,7 @@ export default function ReportsPage() {
               ) : (
                 <ul className="divide-y divide-border">
                   {data!.topMerchants.map((m, i) => {
-                    const pct = data!.expense > 0 ? Math.round((m.amount / data!.expense) * 100) : 0;
+                    const pct = data!.consumption > 0 ? Math.round((m.amount / data!.consumption) * 100) : 0;
                     return (
                       <li key={m.name} className="flex items-center gap-3 py-2.5">
                         <span className="text-xs text-muted-foreground w-5 text-right">{i + 1}</span>

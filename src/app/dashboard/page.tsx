@@ -23,17 +23,9 @@ async function getDashboardData(userId: string) {
   const prevMonthEnd   = new Date(year, month, 0, 23, 59, 59);
 
   // 이번 달 요약
-  const [incomeAgg, expenseAgg, prevExpenseAgg, recentTx, allCategories, budgetItems] = await Promise.all([
+  const [incomeAgg, recentTx, allCategories, budgetItems] = await Promise.all([
     prisma.transaction.aggregate({
-      where: { userId, isExcluded: false, isIncome: true,  date: { gte: startOfMonth, lte: endOfMonth } },
-      _sum: { amount: true },
-    }),
-    prisma.transaction.aggregate({
-      where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
-      _sum: { amount: true },
-    }),
-    prisma.transaction.aggregate({
-      where: { userId, isExcluded: false, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
+      where: { userId, isExcluded: false, isIncome: true, date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.transaction.findMany({
@@ -104,11 +96,7 @@ async function getDashboardData(userId: string) {
     ...v,
   }));
 
-  const income      = Number(incomeAgg._sum.amount     ?? 0);
-  const expense     = Number(expenseAgg._sum.amount    ?? 0);
-  const prevExpense = Number(prevExpenseAgg._sum.amount ?? 0);
-  const expenseChange = prevExpense > 0
-    ? Math.round(((expense - prevExpense) / prevExpense) * 100) : null;
+  const income = Number(incomeAgg._sum.amount ?? 0);
 
   // 카테고리별 flowType 조회
   const catIds = categoryExpenses.map((c: CatExp) => c.categoryId).filter(Boolean) as string[];
@@ -118,12 +106,36 @@ async function getDashboardData(userId: string) {
     for (const c of catDetails) catFlowMap[c.id] = (c.flowType as CategoryFlowType) ?? "CONSUMPTION";
   }
 
-  // Flow-aware savings rate
+  // Flow-aware savings rate (current month)
   const flowRows = categoryExpenses
     .filter((c: CatExp) => c.categoryId)
     .map((c: CatExp) => ({ amount: Number(c._sum.amount ?? 0), flowType: catFlowMap[c.categoryId!] ?? "CONSUMPTION" }));
   const flow = computeFlowSummary(income, flowRows);
   const savingsRate = flow.savingsRate;
+
+  // expenseChange: compare consumption vs prev month consumption (apples-to-apples)
+  const prevCatExpenses = await prisma.transaction.groupBy({
+    by: ["categoryId"],
+    where: { userId, isExcluded: false, isIncome: false, date: { gte: prevMonthStart, lte: prevMonthEnd } },
+    _sum: { amount: true },
+  });
+  const prevCatIds = prevCatExpenses.map(c => c.categoryId).filter(Boolean) as string[];
+  const prevCatFlowMap: Record<string, CategoryFlowType> = {};
+  if (prevCatIds.length > 0) {
+    const prevCatDetails = await prisma.category.findMany({ where: { id: { in: prevCatIds } }, select: { id: true, flowType: true } });
+    for (const c of prevCatDetails) prevCatFlowMap[c.id] = (c.flowType as CategoryFlowType) ?? "CONSUMPTION";
+  }
+  let prevConsumption = 0;
+  for (const c of prevCatExpenses) {
+    if (!c.categoryId) continue;
+    if ((prevCatFlowMap[c.categoryId] ?? "CONSUMPTION") === "CONSUMPTION") {
+      prevConsumption += Number(c._sum.amount ?? 0);
+    }
+  }
+  const expenseChange = prevConsumption > 0
+    ? Math.round(((flow.consumption - prevConsumption) / prevConsumption) * 100)
+    : null;
+  const prevExpense = prevConsumption;
 
   // 재정 건강 점수 계산 (health API 쿼리 중복 제거)
   const spentMap: Record<string, number> = {};
@@ -144,7 +156,7 @@ async function getDashboardData(userId: string) {
   else if (savingsRateRaw >= 0.1) score += 10;
   else if (savingsRateRaw < 0)    score -= 20;
   if (prevExpense > 0) {
-    const changeRate = (expense - prevExpense) / prevExpense;
+    const changeRate = (flow.consumption - prevExpense) / prevExpense;
     if      (changeRate <= -0.1) score += 15;
     else if (changeRate <= 0)    score += 5;
     else if (changeRate > 0.2)   score -= 15;
@@ -161,8 +173,8 @@ async function getDashboardData(userId: string) {
   if (savingsRateRaw < 0.1 && income > 0) tips.push("저축률을 10% 이상으로 높여보세요.");
   if (overBudgetCount > 0)                tips.push(`예산을 초과한 카테고리가 ${overBudgetCount}개 있어요.`);
   if (budgetItems.length === 0)           tips.push("카테고리별 예산을 설정하면 점수가 올라가요.");
-  if (prevExpense > 0 && (expense - prevExpense) / prevExpense > 0.1)
-    tips.push("지출이 전월 대비 10% 이상 증가했어요.");
+  if (prevExpense > 0 && (flow.consumption - prevExpense) / prevExpense > 0.1)
+    tips.push("소비 지출이 전월 대비 10% 이상 증가했어요.");
   if (flow.savings > 0 || flow.investment > 0)
     tips.push(`저축 ${formatKRW(flow.savings + flow.investment)} 이 소비 지출에서 분리됐어요.`);
   const healthData: HealthData = {
@@ -190,6 +202,8 @@ export default async function DashboardPage() {
   const { income, expense, savings, expenseChange, savingsRate, recentTx, categoryData, monthlyData, allCategories, healthData, label } =
     await getDashboardData(session.user.id);
 
+  // balance = income minus all outflows (consumption + savings + investment)
+  // `expense` here is already flow.consumption; `savings` is savings+investment
   const balance = income - expense - savings;
   const hasData = income > 0 || expense > 0;
 

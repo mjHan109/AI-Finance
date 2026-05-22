@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Anthropic from "@anthropic-ai/sdk";
 import { insightsQuerySchema, safeParse } from "@/lib/schemas";
 import { log } from "@/lib/logger";
+import { computeFlowSummary, type CategoryFlowType } from "@/lib/flow";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -40,13 +41,9 @@ export async function POST(req: NextRequest) {
     const startOfMonth = new Date(year, month - 1, 1);
     const endOfMonth   = new Date(year, month, 0, 23, 59, 59);
 
-    const [incomeAgg, expenseAgg, categoryExpenses, budgetItems] = await Promise.all([
+    const [incomeAgg, categoryExpenses, budgetItems] = await Promise.all([
       prisma.transaction.aggregate({
         where: { userId, isExcluded: false, isIncome: true, date: { gte: startOfMonth, lte: endOfMonth } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
         _sum: { amount: true },
       }),
       prisma.transaction.groupBy({
@@ -54,7 +51,7 @@ export async function POST(req: NextRequest) {
         where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
         _sum: { amount: true },
         orderBy: { _sum: { amount: "desc" } },
-        take: 6,
+        take: 8,
       }),
       prisma.budget.findMany({
         where: { userId, year, month },
@@ -62,39 +59,51 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    const income  = Number(incomeAgg._sum.amount  ?? 0);
-    const expense = Number(expenseAgg._sum.amount ?? 0);
-
-    if (income === 0 && expense === 0) {
-      return NextResponse.json({ error: "이 달의 거래 내역이 없어요." }, { status: 422 });
-    }
+    const income = Number(incomeAgg._sum.amount ?? 0);
 
     const catIds = categoryExpenses.map((c) => c.categoryId).filter(Boolean) as string[];
     const cats   = await prisma.category.findMany({ where: { id: { in: catIds } } });
-    const catMap: Record<string, string> = {};
-    for (const c of cats) catMap[c.id] = c.name;
+    const catMap: Record<string, { name: string; flowType: CategoryFlowType }> = {};
+    for (const c of cats) catMap[c.id] = { name: c.name, flowType: (c.flowType as CategoryFlowType) ?? "CONSUMPTION" };
+
+    // Flow-aware breakdown
+    const flowRows = categoryExpenses.map(c => ({
+      amount:   Number(c._sum.amount ?? 0),
+      flowType: c.categoryId ? (catMap[c.categoryId]?.flowType ?? "CONSUMPTION") : "CONSUMPTION" as CategoryFlowType,
+    }));
+    const flow = computeFlowSummary(income, flowRows);
+
+    if (income === 0 && flow.consumption === 0) {
+      return NextResponse.json({ error: "이 달의 거래 내역이 없어요." }, { status: 422 });
+    }
 
     const categoryLines = categoryExpenses.map((c) => {
-      const name   = c.categoryId ? (catMap[c.categoryId] ?? "기타") : "기타";
+      const info   = c.categoryId ? catMap[c.categoryId] : null;
+      const name   = info?.name ?? "기타";
+      const ft     = info?.flowType ?? "CONSUMPTION";
       const amount = Number(c._sum.amount ?? 0);
-      const pct    = expense > 0 ? Math.round((amount / expense) * 100) : 0;
-      return `  - ${name}: ${amount.toLocaleString()}원 (${pct}%)`;
+      const base   = ft === "CONSUMPTION" ? flow.consumption : (ft === "SAVINGS" ? flow.savings : flow.investment);
+      const pct    = base > 0 ? Math.round((amount / base) * 100) : 0;
+      const tag    = ft === "SAVINGS" ? "[저축]" : ft === "INVESTMENT" ? "[투자]" : ft === "TRANSFER" ? "[이체]" : "";
+      return `  - ${name}${tag}: ${amount.toLocaleString()}원 (${pct}%)`;
     }).join("\n");
 
     const budgetLines = budgetItems.map((b) => {
       return `  - ${b.category.name}: 예산 ${Number(b.amount).toLocaleString()}원`;
     }).join("\n") || "  없음";
 
-    const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : null;
+    const savingsRate = flow.savingsRate;
 
-    const prompt = `당신은 개인 재정 분석 어시스턴트입니다. 아래 ${year}년 ${month}월 지출 데이터를 분석해서 실용적인 인사이트 3~5개를 JSON 배열로만 응답해주세요.
+    const prompt = `당신은 개인 재정 분석 어시스턴트입니다. 아래 ${year}년 ${month}월 재정 데이터를 분석해서 실용적인 인사이트 3~5개를 JSON 배열로만 응답해주세요.
 
 데이터:
 - 총 수입: ${income.toLocaleString()}원
-- 총 지출: ${expense.toLocaleString()}원
-- 저축률: ${savingsRate !== null ? savingsRate + "%" : "데이터 없음"}
+- 소비 지출: ${flow.consumption.toLocaleString()}원 (이체/저축/투자 제외)
+- 저축/적금: ${flow.savings.toLocaleString()}원
+- 투자: ${flow.investment.toLocaleString()}원
+- 저축률: ${savingsRate !== null ? savingsRate + "% (저축+투자÷수입)" : "데이터 없음"}
 
-카테고리별 지출:
+카테고리별 내역:
 ${categoryLines}
 
 설정된 예산:
