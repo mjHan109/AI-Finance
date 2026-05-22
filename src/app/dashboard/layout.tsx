@@ -12,6 +12,7 @@ import {
   LogOut,
   Flag,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const NAV = [
   { href: "/dashboard",              label: "홈",      icon: LayoutDashboard, exact: true },
@@ -23,6 +24,7 @@ const NAV = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   function isActive(href: string, exact?: boolean) {
     return exact ? pathname === href : pathname.startsWith(href);
@@ -103,6 +105,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Upload size={20} />
           <span className="text-[10px] font-medium">업로드</span>
         </Link>
+        <button
+          onClick={() => router.push("/logout")}
+          className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-muted-foreground transition-colors"
+        >
+          <LogOut size={20} />
+          <span className="text-[10px] font-medium">로그아웃</span>
+        </button>
       </nav>
     </div>
   );
