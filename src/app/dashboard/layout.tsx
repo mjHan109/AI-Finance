@@ -12,7 +12,7 @@ import {
   LogOut,
   Flag,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { AUTH_ROUTES } from "@/lib/auth-routes";
 
 const NAV = [
   { href: "/dashboard",              label: "홈",      icon: LayoutDashboard, exact: true },
@@ -24,7 +24,6 @@ const NAV = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
 
   function isActive(href: string, exact?: boolean) {
     return exact ? pathname === href : pathname.startsWith(href);
@@ -68,7 +67,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             파일 업로드
           </Link>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => signOut({ callbackUrl: AUTH_ROUTES.login })}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           >
             <LogOut size={17} />
@@ -106,7 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="text-[10px] font-medium">업로드</span>
         </Link>
         <button
-          onClick={() => router.push("/logout")}
+          onClick={() => signOut({ callbackUrl: AUTH_ROUTES.login })}
           className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-muted-foreground transition-colors"
         >
           <LogOut size={20} />
