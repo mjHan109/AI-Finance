@@ -33,6 +33,9 @@ Legend: ✅ Done · ⬜ Pending · 🔜 Future
 | Ownership validation — Goals | ✅ |
 | Ownership validation — Upload history | ✅ |
 | Ownership validation — Reports | ✅ |
+| Route middleware protection (middleware.ts) | ✅ All protected routes guarded via Next.js middleware |
+
+> **Note:** Next.js only recognises `middleware.ts` at the project root (or `src/`). Any other name (e.g. `proxy.ts`) is silently ignored and provides no protection. This was the root cause of the earlier unprotected production routes.
 
 ---
 
@@ -104,6 +107,7 @@ Legend: ✅ Done · ⬜ Pending · 🔜 Future
 | AUTH_SECRET not exposed to client | ✅ |
 | ANTHROPIC_API_KEY not exposed to client | ✅ |
 | .env excluded from git | ✅ .gitignore |
+| AUTH_URL set in Vercel production | ⬜ Verify AUTH_URL (NextAuth v5) is set; VERCEL_URL is auto-injected as fallback |
 
 ---
 
@@ -165,7 +169,7 @@ Legend: ✅ Done · ⬜ Pending · 🔜 Future
 
 | Item | Status |
 |------|--------|
-| Authorization testing (401 for unauthenticated) | ✅ E2E tests added |
+| Authorization testing (401/307 for unauthenticated) | ✅ 38 E2E tests — all pages, API routes, logout |
 | Upload validation testing | ⬜ |
 | Session security testing | ⬜ |
 | API abuse / rate limit testing | ⬜ |

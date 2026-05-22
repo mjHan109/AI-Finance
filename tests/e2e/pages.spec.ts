@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 /**
  * Page-level E2E tests
- * Covers: 404 page, protected page redirects, login page UI
+ * Covers: 404 page, protected page redirects, login page UI, logout
  */
 
 test.describe("404 and error pages", () => {
@@ -23,30 +23,21 @@ test.describe("404 and error pages", () => {
 });
 
 test.describe("Protected page redirects", () => {
-  test("unauthenticated /dashboard redirects to login", async ({ page }) => {
-    await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/(login|api\/auth\/signin)/);
-  });
+  const protectedPages = [
+    "/dashboard",
+    "/dashboard/transactions",
+    "/dashboard/reports",
+    "/dashboard/budget",
+    "/dashboard/goals",
+    "/upload",
+  ];
 
-  test("unauthenticated /dashboard/reports redirects to login", async ({ page }) => {
-    await page.goto("/dashboard/reports");
-    await expect(page).toHaveURL(/\/(login|api\/auth\/signin)/);
-  });
-
-  test("unauthenticated /dashboard/budgets redirects to login", async ({ page }) => {
-    await page.goto("/dashboard/budgets");
-    await expect(page).toHaveURL(/\/(login|api\/auth\/signin)/);
-  });
-
-  test("unauthenticated /dashboard/goals redirects to login", async ({ page }) => {
-    await page.goto("/dashboard/goals");
-    await expect(page).toHaveURL(/\/(login|api\/auth\/signin)/);
-  });
-
-  test("unauthenticated /dashboard/accounts redirects to login", async ({ page }) => {
-    await page.goto("/dashboard/accounts");
-    await expect(page).toHaveURL(/\/(login|api\/auth\/signin)/);
-  });
+  for (const path of protectedPages) {
+    test(`unauthenticated ${path} redirects to /login`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/(login|api\/auth\/signin)/);
+    });
+  }
 });
 
 test.describe("Login page UI", () => {
@@ -72,5 +63,18 @@ test.describe("Login page UI", () => {
     expect(content).not.toContain("process.env");
     expect(content).not.toContain("DATABASE_URL");
     expect(content).not.toContain("ANTHROPIC_API_KEY");
+  });
+});
+
+test.describe("Logout page", () => {
+  test("/logout page loads without 404", async ({ page }) => {
+    const res = await page.goto("/logout");
+    // Page must exist (not 404); client-side signOut handles the actual redirect
+    expect(res?.status()).not.toBe(404);
+  });
+
+  test("GET /logout does not return 404", async ({ request }) => {
+    const res = await request.get("/logout", { maxRedirects: 0 });
+    expect(res.status()).not.toBe(404);
   });
 });
