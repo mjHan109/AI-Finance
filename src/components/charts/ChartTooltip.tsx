@@ -16,5 +16,5 @@ export const tooltipLabelStyle = {
   fontWeight: 500 as const,
 };
 
-/** Very subtle hover cursor — replaces the large gray default block */
-export const tooltipCursor = { fill: "rgba(255,255,255,0.04)" };
+/** Pass to Recharts Tooltip cursor prop to disable the gray hover overlay */
+export const tooltipCursor = false as const;

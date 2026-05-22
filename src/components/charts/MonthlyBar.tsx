@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { tooltipContentStyle, tooltipLabelStyle, tooltipCursor } from "@/components/charts/ChartTooltip";
+import { tooltipContentStyle, tooltipLabelStyle } from "@/components/charts/ChartTooltip";
 
 interface MonthlyData {
   month: string;
@@ -63,7 +63,7 @@ export function MonthlyBar({ data }: Props) {
           ]}
           contentStyle={tooltipContentStyle}
           labelStyle={tooltipLabelStyle}
-          cursor={tooltipCursor}
+          cursor={false}
         />
         <Legend
           formatter={(v) => (v === "income" ? "수입" : "지출")}

@@ -9,7 +9,7 @@ import { MonthlyBar } from "@/components/charts/MonthlyBar";
 import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, Wallet, Lightbulb, CalendarDays, BarChart3, Sparkles, Upload } from "lucide-react";
 import { formatKRW } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
-import { tooltipContentStyle, tooltipCursor } from "@/components/charts/ChartTooltip";
+import { tooltipContentStyle } from "@/components/charts/ChartTooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface CategoryData {
@@ -285,12 +285,12 @@ export default function ReportsPage() {
                     <Tooltip
                       formatter={(v) => [`${Number(v).toLocaleString()}원`, "지출"]}
                       contentStyle={tooltipContentStyle}
-                      cursor={tooltipCursor}
+                      cursor={false}
                     />
                     <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
                       {data!.dowData.map((entry: DowData, i: number) => {
                         const max = Math.max(...data!.dowData.map((d: DowData) => d.amount));
-                        return <Cell key={i} fill={entry.amount === max ? "hsl(var(--primary))" : "hsl(var(--muted))"} />;
+                        return <Cell key={i} fill={entry.amount === max ? "hsl(var(--primary))" : "rgba(139,92,246,0.25)"} />;
                       })}
                     </Bar>
                   </BarChart>
@@ -312,9 +312,10 @@ export default function ReportsPage() {
                       <YAxis hide />
                       <Tooltip
                         formatter={(v) => [`${Number(v).toLocaleString()}원`, "지출"]}
-                        contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px", color: "hsl(var(--popover-foreground))" }}
+                        contentStyle={tooltipContentStyle}
+                        cursor={false}
                       />
-                      <Bar dataKey="amount" fill="#F87171" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="amount" fill="#f87171" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
