@@ -2,100 +2,96 @@
 
 # Phase 1 — Project Foundation
 
-## Goal
-Set up the core application architecture and infrastructure.
-
 ## Completed
-- Next.js 15 setup
-- Tailwind CSS setup
-- shadcn/ui setup
-- PostgreSQL connection
-- Prisma ORM setup
-- NextAuth integration
-- Google OAuth login
-- Email/password login
+- Next.js 15 setup, Tailwind CSS, shadcn/ui
+- PostgreSQL + Prisma ORM
+- NextAuth v5: Google OAuth + email/password login
 
 ---
 
 # Phase 2 — File Upload & Transaction Parsing
 
-## Goal
-Allow users to upload financial files and normalize transaction data.
-
 ## Completed
-- XLSX upload support
-- CSV upload support
-- SheetJS parser integration
-- PapaParse integration
-- KB Bank format support
-- BankSalad format support
-- Duplicate transaction detection
-- Transaction normalization
+- XLSX/CSV upload (SheetJS + PapaParse)
+- KB Bank + BankSalad format support
+- Duplicate detection, transaction normalization
 
 ---
 
 # Phase 3 — Core Finance Features
 
-## Goal
-Build the main financial management system.
-
 ## Completed
-- Account management APIs
-- Category APIs
-- Transaction APIs
-- Budget APIs
-- Monthly reports API
-- Reclassification API
+- Account, Category, Transaction, Budget, Reports, Reclassification APIs
 
 ---
 
-# Phase 4 — Dashboard & UX Improvements
-
-## Goal
-Improve dashboard usability and mobile experience.
+# Phase 4 — Dashboard & UX
 
 ## Completed
-- Transaction detail modal
+- Transaction detail modal with category edit + memo
 - Dashboard loading skeletons
 - Mobile bottom navigation
-- Upload history
-
-## Current Status
-Completed and pushed to remote repository.
-
-## Remaining
-- Financial Health Card
-- Goals page
-- Smart Rules System
-- AI insight cards
+- Upload history page
+- Financial Health Card (score, tips, gauge)
+- Goals page: D-day, monthly savings target, progress bar, completion animation, calendar popover
+- Logout page + mobile logout action
 
 ---
 
 # Phase 5 — AI Features
 
-## Goal
-Provide intelligent financial analysis and recommendations.
+## Completed
+- Claude API integration (/api/ai/insights)
+- Deterministic insight engine + LLM monthly summary
+- AI Insight Cards on dashboard
+- LLM prompt includes flow-aware breakdown (consumption/savings/investment/transfer)
 
-## Planned
-- Claude API integration
-- AI transaction categorization
+## Remaining
 - Subscription detection
-- Spending pattern analysis
-- Monthly AI summaries
-- Financial recommendations
+- Anomaly / spending pattern alerts
 
 ---
 
 # Phase 6 — Security & Production Hardening
 
-## Goal
-Prepare the application for production deployment.
+## Completed
+- Security headers: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- Rate limiting: signup (10/5min), reclassify (60s), reports (1/10s), budgets (1/5s)
+- Upload security: MIME check, magic bytes, size limit (10 MB), filename sanitization
+- Zod schema validation (src/lib/schemas.ts)
+- Route protection: src/proxy.ts (Next.js 16 proxy convention)
+  - Checks authjs.session-token / __Secure-authjs.session-token
+  - AUTH_ROUTES constant as single source of truth (src/lib/auth-routes.ts)
+- Logout: relative callbackUrl resolves correctly in production
+- E2E: 38 tests (auth, API security, upload, pages, logout)
+- Unit tests: 25 tests (flow calculation, category mapping)
+- vitest.config.ts scoped to src/ only
 
-## Planned
-- Security headers
-- Rate limiting
-- Sensitive data encryption
-- Upload security hardening
-- Audit logging
-- E2E testing
-- Production deployment
+## Remaining
+- Structured audit logging (login, upload, AI call events)
+- Cascade delete (orphan prevention on account/goal delete)
+- Brute-force protection on /api/auth/signin
+- At-rest encryption for rawDescription, memo, account names
+
+---
+
+# Phase 7 — Financial Semantics & Flow Classification
+
+## Completed
+- CategoryFlowType: CONSUMPTION | SAVINGS | INVESTMENT | TRANSFER
+- src/lib/flow.ts: computeFlowSummary — single authoritative function used across all 4 surfaces
+  - Savings Rate = (savings + investment) / income
+  - TRANSFER excluded from all metrics
+- Apples-to-apples expenseChange: both months filtered to CONSUMPTION only
+- Health score prevConsumption now flow-filtered
+- BankSalad map extended: 저축/적금/예금 → SAVINGS, 투자 → INVESTMENT
+- Dashboard metric sublabels: "저축·이체 제외", "수입 − 소비 − 저축", "(저축+투자) / 수입"
+- 15 categories seeded to production DB with correct flowType values
+
+---
+
+# Phase 8 — Mobile Strategy (Planned)
+
+- Phase 8A: PWA (next-pwa, manifest.json, service worker, home screen install)
+- Phase 8B: API standardization (response format, CORS, env cleanup)
+- Phase 8C: React Native Expo in separate podo-mobile repo (never add RN to this repo)
