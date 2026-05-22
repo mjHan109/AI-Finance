@@ -9,6 +9,7 @@ import { MonthlyBar } from "@/components/charts/MonthlyBar";
 import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, Wallet, Lightbulb, CalendarDays, BarChart3, Sparkles, Upload } from "lucide-react";
 import { formatKRW } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
+import { tooltipContentStyle, tooltipCursor } from "@/components/charts/ChartTooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface CategoryData {
@@ -283,7 +284,8 @@ export default function ReportsPage() {
                     <YAxis hide />
                     <Tooltip
                       formatter={(v) => [`${Number(v).toLocaleString()}원`, "지출"]}
-                      contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px", color: "hsl(var(--popover-foreground))" }}
+                      contentStyle={tooltipContentStyle}
+                      cursor={tooltipCursor}
                     />
                     <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
                       {data!.dowData.map((entry: DowData, i: number) => {

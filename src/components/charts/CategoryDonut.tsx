@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { tooltipContentStyle } from "@/components/charts/ChartTooltip";
 
 interface CategoryData {
   name: string;
@@ -56,13 +57,7 @@ export function CategoryDonut({ data }: Props) {
           </Pie>
           <Tooltip
             formatter={(value) => [formatKRW(Number(value)), "지출"]}
-            contentStyle={{
-              background: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "8px",
-              fontSize: "12px",
-              color: "hsl(var(--popover-foreground))",
-            }}
+            contentStyle={tooltipContentStyle}
           />
         </PieChart>
       </ResponsiveContainer>

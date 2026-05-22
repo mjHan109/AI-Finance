@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { tooltipContentStyle, tooltipLabelStyle, tooltipCursor } from "@/components/charts/ChartTooltip";
 
 interface MonthlyData {
   month: string;
@@ -27,13 +28,6 @@ function formatYAxis(v: number) {
   return `${v.toLocaleString()}`;
 }
 
-const TOOLTIP_STYLE = {
-  background: "hsl(var(--popover))",
-  border: "1px solid hsl(var(--border))",
-  borderRadius: "8px",
-  fontSize: "12px",
-  color: "hsl(var(--popover-foreground))",
-};
 
 export function MonthlyBar({ data }: Props) {
   if (data.every((d) => d.income === 0 && d.expense === 0)) {
@@ -67,8 +61,9 @@ export function MonthlyBar({ data }: Props) {
             `${Number(value).toLocaleString()}원`,
             name === "income" ? "수입" : "지출",
           ]}
-          contentStyle={TOOLTIP_STYLE}
-          labelStyle={{ color: "hsl(var(--muted-foreground))", marginBottom: 4 }}
+          contentStyle={tooltipContentStyle}
+          labelStyle={tooltipLabelStyle}
+          cursor={tooltipCursor}
         />
         <Legend
           formatter={(v) => (v === "income" ? "수입" : "지출")}

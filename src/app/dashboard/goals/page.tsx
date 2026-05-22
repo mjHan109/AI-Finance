@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,8 @@ function toDateStr(y: number, m: number, d: number) {
   return `${y}-${String(m + 1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 }
 
+const CAL_WIDTH = 288; // w-72
+
 function CalendarPicker({
   value,
   onChange,
@@ -40,22 +43,43 @@ function CalendarPicker({
   onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos,  setPos]  = useState({ top: 0, left: 0 });
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const init = value ? new Date(value + "T00:00:00") : today;
   const [viewYear,  setViewYear]  = useState(init.getFullYear());
   const [viewMonth, setViewMonth] = useState(init.getMonth());
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) setOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  function openCalendar() {
+    if (!triggerRef.current) return;
+    const rect     = triggerRef.current.getBoundingClientRect();
+    const calH     = 340;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow >= calH
+      ? rect.bottom + window.scrollY + 4
+      : rect.top    + window.scrollY - calH - 4;
+    const left = Math.min(
+      rect.left + window.scrollX,
+      window.innerWidth + window.scrollX - CAL_WIDTH - 8,
+    );
+    setPos({ top, left });
+    setOpen(o => !o);
+  }
 
   function prevMonth() {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
@@ -73,93 +97,100 @@ function CalendarPicker({
     setOpen(false);
   }
 
-  const selected = value ? new Date(value + "T00:00:00") : null;
-  const firstDay   = new Date(viewYear, viewMonth, 1).getDay();
+  const selected    = value ? new Date(value + "T00:00:00") : null;
+  const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
   const displayValue = selected
     ? selected.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })
     : "날짜 선택 (선택)";
 
+  const popover = open && typeof document !== "undefined" && createPortal(
+    <div
+      ref={popoverRef}
+      style={{ position: "absolute", top: pos.top, left: pos.left, width: CAL_WIDTH, zIndex: 9999 }}
+      className="bg-card border border-border rounded-xl shadow-2xl p-3"
+    >
+      {/* 월 헤더 */}
+      <div className="flex items-center justify-between mb-3">
+        <button type="button" onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+          <ChevronLeft size={14} />
+        </button>
+        <span className="text-sm font-semibold tabular-nums">
+          {viewYear}년 {KO_MONTHS[viewMonth]}
+        </span>
+        <button type="button" onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+          <ChevronRight size={14} />
+        </button>
+      </div>
+
+      {/* 요일 헤더 */}
+      <div className="grid grid-cols-7 mb-1">
+        {KO_DAYS.map(d => (
+          <div key={d} className={`text-center text-[10px] font-medium py-1 ${d === "일" ? "text-red-400" : d === "토" ? "text-blue-400" : "text-muted-foreground"}`}>{d}</div>
+        ))}
+      </div>
+
+      {/* 날짜 그리드 */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
+        {Array.from({ length: daysInMonth }).map((_, i) => {
+          const day = i + 1;
+          const d   = new Date(viewYear, viewMonth, day);
+          d.setHours(0, 0, 0, 0);
+          const isPast  = d < today;
+          const isSel   = selected &&
+            selected.getFullYear() === viewYear &&
+            selected.getMonth()    === viewMonth &&
+            selected.getDate()     === day;
+          const isToday = d.getTime() === today.getTime();
+          const dow = d.getDay();
+          return (
+            <button
+              key={day}
+              type="button"
+              disabled={isPast}
+              onClick={() => selectDay(day)}
+              className={[
+                "aspect-square flex items-center justify-center text-xs rounded-lg transition-colors",
+                isPast ? "text-muted-foreground/25 cursor-not-allowed" : "cursor-pointer hover:bg-accent",
+                isSel  ? "!bg-primary !text-primary-foreground hover:!bg-primary" : "",
+                isToday && !isSel ? "border border-primary/60 text-primary font-semibold" : "",
+                !isPast && !isSel && dow === 0 ? "text-red-400" : "",
+                !isPast && !isSel && dow === 6 ? "text-blue-400" : "",
+              ].filter(Boolean).join(" ")}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+
+      {value && (
+        <button
+          type="button"
+          onClick={() => { onChange(""); setOpen(false); }}
+          className="mt-2 w-full text-[11px] text-muted-foreground hover:text-foreground text-center transition-colors"
+        >
+          날짜 지우기
+        </button>
+      )}
+    </div>,
+    document.body,
+  );
+
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={openCalendar}
         className={`w-full h-9 px-3 rounded-lg border border-border bg-background text-sm text-left flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${value ? "text-foreground" : "text-muted-foreground"}`}
       >
         <Calendar size={14} className="shrink-0 text-muted-foreground" />
         {displayValue}
       </button>
-
-      {open && (
-        <div className="absolute z-50 mt-1 w-72 bg-card border border-border rounded-xl shadow-2xl p-3 left-0">
-          {/* 월 헤더 */}
-          <div className="flex items-center justify-between mb-3">
-            <button type="button" onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-              <ChevronLeft size={14} />
-            </button>
-            <span className="text-sm font-semibold tabular-nums">
-              {viewYear}년 {KO_MONTHS[viewMonth]}
-            </span>
-            <button type="button" onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-              <ChevronRight size={14} />
-            </button>
-          </div>
-
-          {/* 요일 헤더 */}
-          <div className="grid grid-cols-7 mb-1">
-            {KO_DAYS.map(d => (
-              <div key={d} className={`text-center text-[10px] font-medium py-1 ${d === "일" ? "text-red-400" : d === "토" ? "text-blue-400" : "text-muted-foreground"}`}>{d}</div>
-            ))}
-          </div>
-
-          {/* 날짜 그리드 */}
-          <div className="grid grid-cols-7 gap-0.5">
-            {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const d   = new Date(viewYear, viewMonth, day);
-              d.setHours(0, 0, 0, 0);
-              const isPast = d < today;
-              const isSel  = selected &&
-                selected.getFullYear() === viewYear &&
-                selected.getMonth()    === viewMonth &&
-                selected.getDate()     === day;
-              const isToday = d.getTime() === today.getTime();
-              const dow = d.getDay();
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  disabled={isPast}
-                  onClick={() => selectDay(day)}
-                  className={[
-                    "aspect-square flex items-center justify-center text-xs rounded-lg transition-colors",
-                    isPast ? "text-muted-foreground/25 cursor-not-allowed" : "cursor-pointer hover:bg-accent",
-                    isSel  ? "!bg-primary !text-primary-foreground hover:!bg-primary" : "",
-                    isToday && !isSel ? "border border-primary/60 text-primary font-semibold" : "",
-                    !isPast && !isSel && dow === 0 ? "text-red-400" : "",
-                    !isPast && !isSel && dow === 6 ? "text-blue-400" : "",
-                  ].filter(Boolean).join(" ")}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-
-          {value && (
-            <button
-              type="button"
-              onClick={() => { onChange(""); setOpen(false); }}
-              className="mt-2 w-full text-[11px] text-muted-foreground hover:text-foreground text-center transition-colors"
-            >
-              날짜 지우기
-            </button>
-          )}
-        </div>
-      )}
+      {popover}
     </div>
   );
 }
