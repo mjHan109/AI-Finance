@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { computeFlowSummary, type CategoryFlowType } from "@/lib/flow";
 
 const DAY_LABELS     = ["일", "월", "화", "수", "목", "금", "토"];
 const REPORTS_LIMIT  = 1;
@@ -58,9 +59,8 @@ export async function GET(req: NextRequest) {
 
     const incomeChange  = prevIncome  > 0 ? Math.round(((income  - prevIncome)  / prevIncome)  * 100) : null;
     const expenseChange = prevExpense > 0 ? Math.round(((expense - prevExpense) / prevExpense) * 100) : null;
-    const savingsRate   = income > 0 ? Math.round(((income - expense) / income) * 100) : null;
 
-    // ── 카테고리별 지출 ──
+    // ── 카테고리별 지출 (flowType 포함) ──
     const categoryExpenses = await prisma.transaction.groupBy({
       by: ["categoryId"],
       where: { userId, isExcluded: false, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
@@ -76,17 +76,23 @@ export async function GET(req: NextRequest) {
 
     const categories = await prisma.category.findMany({ where: { id: { in: categoryIds } } });
 
-    const catRecord: Record<string, { name: string; icon: string | null; color: string | null }> = {};
-    for (const c of categories) catRecord[c.id] = c;
+    const catRecord: Record<string, { name: string; icon: string | null; color: string | null; flowType: CategoryFlowType }> = {};
+    for (const c of categories) catRecord[c.id] = { ...c, flowType: (c.flowType as CategoryFlowType) ?? "CONSUMPTION" };
 
     const categoryData = categoryExpenses
       .filter((c: CatExpRow) => c.categoryId !== null)
       .map((c: CatExpRow) => ({
-        name:   catRecord[c.categoryId!]?.name  ?? "기타",
-        icon:   catRecord[c.categoryId!]?.icon  ?? "📦",
-        color:  catRecord[c.categoryId!]?.color ?? "#4B5563",
-        amount: Number(c._sum.amount ?? 0),
+        name:     catRecord[c.categoryId!]?.name     ?? "기타",
+        icon:     catRecord[c.categoryId!]?.icon     ?? "📦",
+        color:    catRecord[c.categoryId!]?.color    ?? "#4B5563",
+        flowType: (catRecord[c.categoryId!] as { flowType?: CategoryFlowType })?.flowType ?? "CONSUMPTION",
+        amount:   Number(c._sum.amount ?? 0),
       }));
+
+    // ── Flow-aware savings rate ──
+    const flowRows = categoryData.map(c => ({ amount: c.amount, flowType: c.flowType as CategoryFlowType }));
+    const flow = computeFlowSummary(income, flowRows);
+    const savingsRate = flow.savingsRate;
 
     // ── 전달 카테고리별 지출 ──
     const prevCatExpenses = await prisma.transaction.groupBy({
@@ -194,7 +200,8 @@ export async function GET(req: NextRequest) {
     if (maxDow && maxDow.amount > 0) insights.push(`${maxDow.day}요일에 가장 많이 지출했어요.`);
 
     return NextResponse.json({
-      income, expense, prevIncome, prevExpense,
+      income, expense: flow.consumption, prevIncome, prevExpense,
+      consumption: flow.consumption, savings: flow.savings, investment: flow.investment,
       incomeChange, expenseChange, savingsRate,
       categoryData: categoryDataWithDiff,
       monthlyData,

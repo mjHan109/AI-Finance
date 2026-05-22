@@ -11,6 +11,8 @@ export interface HealthData {
   tips: string[];
 }
 
+/** savingsRate here is (savings+investment)/income, NOT (income-expense)/income */
+
 const LEVEL_COLORS = {
   excellent: { ring: "#34d399", text: "text-emerald-400", bg: "bg-emerald-400" },
   good:      { ring: "#60a5fa", text: "text-blue-400",    bg: "bg-blue-400" },
@@ -56,7 +58,10 @@ export function FinancialHealthCard({ data }: { data: HealthData }) {
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {data.savingsRate !== null && (
                 <span className="text-xs text-muted-foreground">
-                  저축률 <span className="font-medium text-foreground">{data.savingsRate}%</span>
+                  저축률 <span className={`font-medium ${data.savingsRate >= 10 ? "text-emerald-400" : data.savingsRate < 0 ? "text-destructive" : "text-foreground"}`}>
+                    {data.savingsRate}%
+                  </span>
+                  <span className="ml-1 text-muted-foreground/60">(저축+투자/수입)</span>
                 </span>
               )}
               {data.totalBudget > 0 && (

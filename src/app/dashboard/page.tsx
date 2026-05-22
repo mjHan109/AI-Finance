@@ -9,6 +9,7 @@ import { CategoryDonut } from "@/components/charts/CategoryDonut";
 import { MonthlyBar } from "@/components/charts/MonthlyBar";
 import { FinancialHealthCard, type HealthData } from "@/components/FinancialHealthCard";
 import { formatKRW } from "@/lib/utils";
+import { computeFlowSummary, type CategoryFlowType } from "@/lib/flow";
 
 async function getDashboardData(userId: string) {
   const now = new Date();
@@ -108,7 +109,21 @@ async function getDashboardData(userId: string) {
   const prevExpense = Number(prevExpenseAgg._sum.amount ?? 0);
   const expenseChange = prevExpense > 0
     ? Math.round(((expense - prevExpense) / prevExpense) * 100) : null;
-  const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : null;
+
+  // 카테고리별 flowType 조회
+  const catIds = categoryExpenses.map((c: CatExp) => c.categoryId).filter(Boolean) as string[];
+  const catFlowMap: Record<string, CategoryFlowType> = {};
+  if (catIds.length > 0) {
+    const catDetails = await prisma.category.findMany({ where: { id: { in: catIds } }, select: { id: true, flowType: true } });
+    for (const c of catDetails) catFlowMap[c.id] = (c.flowType as CategoryFlowType) ?? "CONSUMPTION";
+  }
+
+  // Flow-aware savings rate
+  const flowRows = categoryExpenses
+    .filter((c: CatExp) => c.categoryId)
+    .map((c: CatExp) => ({ amount: Number(c._sum.amount ?? 0), flowType: catFlowMap[c.categoryId!] ?? "CONSUMPTION" }));
+  const flow = computeFlowSummary(income, flowRows);
+  const savingsRate = flow.savingsRate;
 
   // 재정 건강 점수 계산 (health API 쿼리 중복 제거)
   const spentMap: Record<string, number> = {};
@@ -122,7 +137,7 @@ async function getDashboardData(userId: string) {
     totalBudget += bAmt;
     if ((spentMap[b.categoryId] ?? 0) > bAmt) overBudgetCount++;
   }
-  const savingsRateRaw = income > 0 ? (income - expense) / income : 0;
+  const savingsRateRaw = flow.savingsRate !== null ? flow.savingsRate / 100 : 0;
   let score = 50;
   if      (savingsRateRaw >= 0.3) score += 30;
   else if (savingsRateRaw >= 0.2) score += 20;
@@ -148,14 +163,19 @@ async function getDashboardData(userId: string) {
   if (budgetItems.length === 0)           tips.push("카테고리별 예산을 설정하면 점수가 올라가요.");
   if (prevExpense > 0 && (expense - prevExpense) / prevExpense > 0.1)
     tips.push("지출이 전월 대비 10% 이상 증가했어요.");
+  if (flow.savings > 0 || flow.investment > 0)
+    tips.push(`저축 ${formatKRW(flow.savings + flow.investment)} 이 소비 지출에서 분리됐어요.`);
   const healthData: HealthData = {
     score, level, levelLabel,
-    savingsRate: income > 0 ? Math.round(savingsRateRaw * 100) : null,
+    savingsRate: flow.savingsRate,
     overBudgetCount, totalBudget, tips,
   };
 
   return {
-    income, expense, expenseChange, savingsRate,
+    income,
+    expense: flow.consumption,
+    savings: flow.savings + flow.investment,
+    expenseChange, savingsRate,
     recentTx, categoryData, monthlyData, allCategories,
     healthData,
     label: `${year}년 ${month + 1}월`,
@@ -167,10 +187,10 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  const { income, expense, expenseChange, savingsRate, recentTx, categoryData, monthlyData, allCategories, healthData, label } =
+  const { income, expense, savings, expenseChange, savingsRate, recentTx, categoryData, monthlyData, allCategories, healthData, label } =
     await getDashboardData(session.user.id);
 
-  const balance = income - expense;
+  const balance = income - expense - savings;
   const hasData = income > 0 || expense > 0;
 
   return (
@@ -239,6 +259,11 @@ export default async function DashboardPage() {
             <p className={`text-xl font-bold tabular-nums ${(savingsRate ?? 0) >= 0 ? "text-amber-400" : "text-destructive"}`}>
               {savingsRate !== null && hasData ? `${savingsRate}%` : "-"}
             </p>
+            {savings > 0 && hasData && (
+              <p className="text-xs mt-1 text-muted-foreground tabular-nums">
+                {formatKRW(savings)} 저축/투자
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

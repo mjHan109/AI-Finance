@@ -11,10 +11,10 @@ async function main() {
   for (const rule of CATEGORY_RULES) {
     await prisma.category.upsert({
       where: { name: rule.name },
-      update: { icon: rule.icon, color: rule.color },
-      create: { name: rule.name, icon: rule.icon, color: rule.color, isSystem: true },
+      update: { icon: rule.icon, color: rule.color, flowType: rule.flowType },
+      create: { name: rule.name, icon: rule.icon, color: rule.color, isSystem: true, flowType: rule.flowType },
     });
-    console.log(`✓ ${rule.icon} ${rule.name}`);
+    console.log(`✓ ${rule.icon} ${rule.name} [${rule.flowType}]`);
   }
   console.log("\n카테고리 시드 완료!");
 }

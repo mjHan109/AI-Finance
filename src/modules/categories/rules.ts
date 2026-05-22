@@ -1,7 +1,10 @@
+export type CategoryFlowType = "CONSUMPTION" | "SAVINGS" | "INVESTMENT" | "TRANSFER";
+
 export interface CategoryRule {
   name: string;
   icon: string;
   color: string;
+  flowType: CategoryFlowType;
   keywords: string[];
 }
 
@@ -10,6 +13,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "카페/간식",
     icon: "☕",
     color: "#A16207",
+    flowType: "CONSUMPTION",
     keywords: [
       "스타벅스", "이디야", "투썸플레이스", "투썸", "할리스", "빽다방", "메가커피", "커피빈",
       "폴바셋", "파스쿠찌", "드롭탑", "엔젤리너스", "카페베네", "탐앤탐스", "공차",
@@ -24,6 +28,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "식비",
     icon: "🍽️",
     color: "#EA580C",
+    flowType: "CONSUMPTION",
     keywords: [
       // 배달앱
       "배달의민족", "배민", "요기요", "쿠팡이츠",
@@ -50,6 +55,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "생활/마트",
     icon: "🛒",
     color: "#16A34A",
+    flowType: "CONSUMPTION",
     keywords: [
       // 대형마트
       "이마트", "홈플러스", "롯데마트", "코스트코", "트레이더스", "하나로마트",
@@ -66,6 +72,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "뷰티/미용",
     icon: "💄",
     color: "#EC4899",
+    flowType: "CONSUMPTION",
     keywords: [
       "미용실", "헤어", "hair", "네일", "네일샵", "속눈썹", "왁싱",
       "피부관리", "에스테틱", "마사지", "스파", "사우나",
@@ -78,6 +85,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "교통",
     icon: "🚌",
     color: "#2563EB",
+    flowType: "CONSUMPTION",
     keywords: [
       // 대중교통
       "지하철", "버스", "티머니", "교통카드", "후불교통",
@@ -99,6 +107,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "쇼핑",
     icon: "🛍️",
     color: "#9333EA",
+    flowType: "CONSUMPTION",
     keywords: [
       // 온라인쇼핑
       "쿠팡", "네이버쇼핑", "11번가", "G마켓", "옥션", "SSG닷컴", "SSG",
@@ -119,6 +128,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "의료/건강",
     icon: "🏥",
     color: "#DC2626",
+    flowType: "CONSUMPTION",
     keywords: [
       // 의료기관
       "병원", "의원", "클리닉", "한의원", "치과", "안과", "피부과",
@@ -135,6 +145,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "문화/여가",
     icon: "🎬",
     color: "#DB2777",
+    flowType: "CONSUMPTION",
     keywords: [
       // 영화
       "CGV", "롯데시네마", "메가박스", "영화관", "영화",
@@ -159,6 +170,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "교육",
     icon: "📚",
     color: "#0D9488",
+    flowType: "CONSUMPTION",
     keywords: [
       "학원", "과외", "학습지", "교육",
       "인강", "강의", "클래스101", "클래스", "패스트캠퍼스", "유데미",
@@ -171,6 +183,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "통신/구독",
     icon: "📱",
     color: "#0891B2",
+    flowType: "CONSUMPTION",
     keywords: [
       // 통신사
       "SKT", "SK텔레콤", "KT", "LG유플러스", "LGU+", "알뜰폰",
@@ -189,6 +202,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "주거/관리비",
     icon: "🏠",
     color: "#78716C",
+    flowType: "CONSUMPTION",
     keywords: [
       "관리비", "아파트관리", "월세", "임대료", "전세",
       "전기요금", "한국전력", "한전",
@@ -202,18 +216,41 @@ export const CATEGORY_RULES: CategoryRule[] = [
     name: "금융/이체",
     icon: "💸",
     color: "#6B7280",
+    flowType: "TRANSFER",
     keywords: [
       "이체", "송금", "계좌이체", "ATM", "출금", "입금",
       "카드대금", "카드결제",
       "보험료", "삼성생명", "한화생명", "교보생명", "메리츠", "DB손해보험",
-      "적금", "저축", "투자", "주식", "펀드", "ETF",
       "토스", "토스뱅크", "카카오페이", "네이버페이",
+    ],
+  },
+  {
+    name: "저축/적금",
+    icon: "🏦",
+    color: "#059669",
+    flowType: "SAVINGS",
+    keywords: [
+      "적금", "저축", "정기예금", "예금", "청약저축", "주택청약",
+      "저축은행", "새마을금고", "신협", "우체국저축",
+    ],
+  },
+  {
+    name: "투자",
+    icon: "📈",
+    color: "#7C3AED",
+    flowType: "INVESTMENT",
+    keywords: [
+      "투자", "주식", "펀드", "ETF", "채권", "코인", "암호화폐",
+      "키움증권", "미래에셋", "삼성증권", "NH투자증권", "KB증권",
+      "한국투자증권", "대신증권", "신한투자", "하나증권",
+      "증권", "MTS", "HTS",
     ],
   },
   {
     name: "기타",
     icon: "📦",
     color: "#4B5563",
+    flowType: "CONSUMPTION",
     keywords: [],
   },
 ];

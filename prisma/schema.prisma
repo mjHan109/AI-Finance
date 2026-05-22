@@ -113,6 +113,13 @@ enum ClassificationSource {
   USER
 }
 
+enum CategoryFlowType {
+  CONSUMPTION
+  SAVINGS
+  INVESTMENT
+  TRANSFER
+}
+
 enum FinancialAccountType {
   BANK
   CARD
@@ -135,11 +142,12 @@ model FinancialAccount {
 }
 
 model Category {
-  id          String  @id @default(cuid())
-  name        String  @unique
+  id          String            @id @default(cuid())
+  name        String            @unique
   icon        String?
   color       String?
-  isSystem    Boolean @default(true)
+  isSystem    Boolean           @default(true)
+  flowType    CategoryFlowType  @default(CONSUMPTION)
 
   transactions Transaction[]
   budgets      Budget[]

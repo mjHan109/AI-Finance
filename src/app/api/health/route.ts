@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { computeFlowSummary } from "@/lib/flow";
 
 export async function GET() {
   const session = await auth();
@@ -44,17 +45,22 @@ export async function GET() {
     const expense     = Number(expenseAgg._sum.amount ?? 0);
     const prevExpense = Number(prevExpenseAgg._sum.amount ?? 0);
 
-    const catExpenses = await prisma.transaction.groupBy({
-      by: ["categoryId"],
+    const catExpenses = await prisma.transaction.findMany({
       where: { ...baseWhere, isIncome: false, date: { gte: startOfMonth, lte: endOfMonth } },
-      _sum: { amount: true },
+      select: { categoryId: true, amount: true, category: { select: { flowType: true } } },
     });
 
-    type CatExpRow = (typeof catExpenses)[number];
     const spentMap: Record<string, number> = {};
-    for (const r of catExpenses as CatExpRow[]) {
-      if (r.categoryId) spentMap[r.categoryId] = Number(r._sum.amount ?? 0);
+    for (const r of catExpenses) {
+      if (r.categoryId) spentMap[r.categoryId] = (spentMap[r.categoryId] ?? 0) + Number(r.amount);
     }
+
+    const flowRows = catExpenses.map(r => ({
+      amount: Number(r.amount),
+      flowType: (r.category?.flowType ?? "CONSUMPTION") as import("@/lib/flow").CategoryFlowType,
+    }));
+    const flow = computeFlowSummary(income, flowRows);
+    const savingsRateRaw = flow.savingsRate !== null ? flow.savingsRate / 100 : 0;
 
     let overBudgetCount = 0;
     let totalBudget = 0;
@@ -65,7 +71,7 @@ export async function GET() {
     }
 
     let score = 50;
-    const savingsRate = income > 0 ? (income - expense) / income : 0;
+    const savingsRate = savingsRateRaw;
     if      (savingsRate >= 0.3) score += 30;
     else if (savingsRate >= 0.2) score += 20;
     else if (savingsRate >= 0.1) score += 10;
@@ -94,7 +100,7 @@ export async function GET() {
       score >= 40 ? "보통" : "주의 필요";
 
     const tips: string[] = [];
-    if (savingsRate < 0.1 && income > 0) tips.push("저축률을 10% 이상으로 높여보세요.");
+    if (savingsRateRaw < 0.1 && income > 0) tips.push("저축률을 10% 이상으로 높여보세요.");
     if (overBudgetCount > 0)             tips.push(`예산을 초과한 카테고리가 ${overBudgetCount}개 있어요.`);
     if (budgetItems.length === 0)        tips.push("카테고리별 예산을 설정하면 점수가 올라가요.");
     if (prevExpense > 0 && (expense - prevExpense) / prevExpense > 0.1)
@@ -102,7 +108,10 @@ export async function GET() {
 
     return NextResponse.json({
       score, level, levelLabel,
-      savingsRate: income > 0 ? Math.round(savingsRate * 100) : null,
+      savingsRate: flow.savingsRate,
+      consumption: flow.consumption,
+      savings: flow.savings,
+      investment: flow.investment,
       overBudgetCount,
       totalBudget,
       tips,
