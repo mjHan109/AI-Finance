@@ -88,18 +88,23 @@ export function UploadForm() {
     }
     // selectedAccountId === "none" → 계좌 태그 없이 업로드
 
-    const res = await fetch("/api/upload", { method: "POST", body: form })
-    const text = await res.text()
-    const data = text ? JSON.parse(text) : {}
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: form })
+      const text = await res.text()
+      const data = text ? JSON.parse(text) : {}
 
-    if (!res.ok) {
+      if (!res.ok) {
+        setState("error")
+        setErrorMsg(data.error ?? "업로드 중 오류가 발생했습니다.")
+        return
+      }
+
+      setState("done")
+      setResult(data)
+    } catch {
       setState("error")
-      setErrorMsg(data.error ?? "업로드 중 오류가 발생했습니다.")
-      return
+      setErrorMsg("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
     }
-
-    setState("done")
-    setResult(data)
   }
 
   const sourceLabel: Record<string, string> = {

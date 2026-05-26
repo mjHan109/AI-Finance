@@ -112,16 +112,32 @@ export async function POST(req: NextRequest) {
   const correctionMap: Record<string, string> = {}
   for (const c of corrections) correctionMap[c.pattern] = c.categoryId
 
+  // 전체 fingerprint 한 번에 계산
+  const withFp = parsed.transactions.map((tx) => ({
+    tx,
+    fp: fingerprint(tx.date, tx.description, tx.amount),
+  }))
+
+  // 기존 중복 fingerprint 한 번에 조회 (N+1 → 1)
+  const allFps = withFp.map((x) => x.fp)
+  const existingFps = await prisma.transaction.findMany({
+    where: { userId, fingerprint: { in: allFps } },
+    select: { fingerprint: true },
+  })
+  const existingSet = new Set(existingFps.map((e) => e.fingerprint))
+
   let savedCount = 0
   let dupCount   = 0
 
-  for (const tx of parsed.transactions) {
-    const fp = fingerprint(tx.date, tx.description, tx.amount)
+  const toInsert: {
+    userId: string; fileId: string; financialAccountId: string | null
+    categoryId: string | null; classifiedBy: "RULE"; rawDate: string
+    rawDescription: string; rawAmount: string; date: Date; description: string
+    amount: number; isIncome: boolean; fingerprint: string
+  }[] = []
 
-    const existing = await prisma.transaction.findUnique({
-      where: { userId_fingerprint: { userId, fingerprint: fp } },
-    })
-    if (existing) { dupCount++; continue }
+  for (const { tx, fp } of withFp) {
+    if (existingSet.has(fp)) { dupCount++; continue }
 
     let categoryId: string | null = null
     if (tx.isIncome) {
@@ -145,24 +161,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await prisma.transaction.create({
-      data: {
-        userId,
-        fileId:            uploadedFile.id,
-        financialAccountId,
-        categoryId,
-        classifiedBy:      "RULE",
-        rawDate:           tx.rawDate,
-        rawDescription:    tx.rawDescription,
-        rawAmount:         tx.rawAmount,
-        date:              tx.date,
-        description:       tx.description,
-        amount:            Math.abs(tx.amount),
-        isIncome:          tx.isIncome,
-        fingerprint:       fp,
-      },
+    toInsert.push({
+      userId,
+      fileId:            uploadedFile.id,
+      financialAccountId,
+      categoryId,
+      classifiedBy:      "RULE",
+      rawDate:           tx.rawDate,
+      rawDescription:    tx.rawDescription,
+      rawAmount:         tx.rawAmount,
+      date:              tx.date,
+      description:       tx.description,
+      amount:            Math.abs(tx.amount),
+      isIncome:          tx.isIncome,
+      fingerprint:       fp,
     })
-    savedCount++
+  }
+
+  // 배치 insert (단일 쿼리)
+  if (toInsert.length > 0) {
+    const result = await prisma.transaction.createMany({
+      data: toInsert,
+      skipDuplicates: true,
+    })
+    savedCount = result.count
   }
 
   log("info", "upload", { userId, file: safeName, saved: savedCount, duplicates: dupCount })
